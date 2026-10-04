@@ -1,5 +1,6 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { QueueModule } from '../queue/queue.module';
 import { RealtimeGateway } from './realtime.gateway';
 import {
   ENTRY_ACCESS,
@@ -9,17 +10,14 @@ import {
   SALON_ACCESS,
 } from './room-authorizer';
 
-/**
- * Realtime infrastructure foundation. No queue/ETA business logic — only the gateway,
- * authenticated handshake, authorized rooms, and a snapshot stub.
- */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, forwardRef(() => QueueModule)],
   providers: [
     RealtimeGateway,
     RoomAuthorizer,
     { provide: SALON_ACCESS, useClass: PrismaSalonAccess },
     { provide: ENTRY_ACCESS, useClass: PrismaEntryAccess },
   ],
+  exports: [RealtimeGateway],
 })
 export class RealtimeModule {}

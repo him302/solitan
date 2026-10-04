@@ -118,6 +118,11 @@ export default function DashboardScreen() {
             emoji="🕐"
             onPress={() => router.push('/(manage)/hours')}
           />
+          <DashboardLink
+            label={t('staffQueue.title')}
+            emoji="📋"
+            onPress={() => router.push('/(manage)/queue')}
+          />
         </View>
 
         {/* Sign out */}

@@ -147,3 +147,6 @@ export * from './discovery';
 
 // ---------------- Phase 2: bookings and queue ----------------
 export * from './booking';
+
+// ---------------- Phase 3: live queue engine ----------------
+export * from './queue';

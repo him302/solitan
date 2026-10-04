@@ -5,15 +5,18 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import type { OnGatewayConnection } from '@nestjs/websockets';
+import type { OnGatewayConnection, OnGatewayInit } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
+import { forwardRef, Inject } from '@nestjs/common';
 import {
+  parseRoom,
   snapshotRequestSchema,
   subscribeMessageSchema,
   type Snapshot,
 } from '@soliton/api-contract';
 import { TokenService } from '../auth/tokens/token.service';
 import { RoomAuthorizer, type RealtimeUser } from './room-authorizer';
+import { QueueService } from '../queue/queue.service';
 
 interface SocketData {
   user?: RealtimeUser;
@@ -21,19 +24,19 @@ interface SocketData {
 
 type Ack = { ok: true; room?: string } | { ok: false; error: string };
 
-/**
- * Realtime gateway. The server is the source of truth: clients authenticate at the
- * handshake, may only subscribe to rooms they are authorized for, and receive a
- * snapshot stub on request. No queue mutation/ETA logic lives here.
- */
 @WebSocketGateway({ cors: { origin: true, credentials: true } })
-export class RealtimeGateway implements OnGatewayConnection {
+export class RealtimeGateway implements OnGatewayConnection, OnGatewayInit {
   @WebSocketServer() server!: Server;
 
   constructor(
     private readonly tokens: TokenService,
     private readonly authorizer: RoomAuthorizer,
+    @Inject(forwardRef(() => QueueService)) private readonly queueService: QueueService,
   ) {}
+
+  afterInit(server: Server): void {
+    this.queueService.setServer(server);
+  }
 
   handleConnection(client: Socket): void {
     try {
@@ -80,8 +83,26 @@ export class RealtimeGateway implements OnGatewayConnection {
     if (!(await this.authorizer.authorize(user, parsed.data.room))) {
       return { ok: false, error: 'forbidden' };
     }
-    // Foundation snapshot — authoritative queue state is populated in Phase 1.
-    return { room: parsed.data.room, version: 0, state: null };
+
+    const ref = parseRoom(parsed.data.room);
+    if (!ref) return { ok: false, error: 'unknown_room' };
+
+    try {
+      if (ref.kind === 'salon') {
+        const snapshot = await this.queueService.buildSalonSnapshot(ref.id);
+        return { room: parsed.data.room, version: snapshot.version, state: snapshot };
+      }
+      // Entry room: return the customer's entry detail.
+      // We get the entry's salonId from the entry, then build the entry DTO.
+      const entry = await this.queueService.getEntrySnapshot(ref.id, user.id);
+      return {
+        room: parsed.data.room,
+        version: entry.queueVersion,
+        state: entry,
+      };
+    } catch {
+      return { room: parsed.data.room, version: 0, state: null };
+    }
   }
 
   private userOf(client: Socket): RealtimeUser | undefined {

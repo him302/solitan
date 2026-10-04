@@ -1,16 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme, Card, QueueGlyph, EtaBlock, LoadingState, ErrorState } from '@soliton/ui';
-import type { BookingDto, BookingStatus } from '@soliton/api-contract';
-import { useQueryClient } from '@tanstack/react-query';
+import type { QueueEntryDto } from '@soliton/api-contract';
 import { useBooking, useCancelBooking, BOOKINGS_KEY } from '../../src/hooks/useBookings';
-import { bookingRepository } from '../../src/services/bookingRepository';
+import { useEntryRealtime } from '../../src/hooks/useEntryRealtime';
+import { useQueryClient } from '@tanstack/react-query';
 import { formatDuration, formatPrice } from '../../src/utils/format';
 
-function statusBg(status: BookingStatus, colors: ReturnType<typeof useTheme>['colors']): string {
+function statusBg(
+  status: QueueEntryDto['status'],
+  colors: ReturnType<typeof useTheme>['colors'],
+): string {
   switch (status) {
     case 'serving':
       return colors.warmYellow;
@@ -24,7 +27,7 @@ function statusBg(status: BookingStatus, colors: ReturnType<typeof useTheme>['co
   }
 }
 
-/** Live queue tracking screen. Simulates queue advancement in dev mode. */
+/** Live queue tracking screen — real-time updates via Socket.IO with HTTP polling fallback. */
 export default function QueueTrackScreen() {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const { t } = useTranslation();
@@ -34,37 +37,24 @@ export default function QueueTrackScreen() {
   const queryClient = useQueryClient();
   const cancelBooking = useCancelBooking();
 
-  const { data: booking, isLoading, isError } = useBooking(bookingId ?? null);
+  // HTTP baseline — polls every 8s for resilience when Socket.IO is unavailable.
+  const { data: httpEntry, isLoading, isError } = useBooking(bookingId ?? null);
 
-  // Simulated queue advancement: every 8 seconds, move one position closer
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [localBooking, setLocalBooking] = useState<BookingDto | null>(null);
+  // Local state that merges HTTP data with Socket.IO push updates.
+  const [liveEntry, setLiveEntry] = useState<QueueEntryDto | null>(null);
 
-  useEffect(() => {
-    if (booking) setLocalBooking(booking);
-  }, [booking]);
+  // Subscribe to Socket.IO realtime events for this entry.
+  useEntryRealtime(bookingId, (updated) => {
+    setLiveEntry(updated);
+    // Also update TanStack Query cache so Activity screen stays in sync.
+    queryClient.setQueryData([BOOKINGS_KEY, bookingId], updated);
+  });
 
-  useEffect(() => {
-    if (!bookingId) return;
-    const active = localBooking?.status === 'waiting' || localBooking?.status === 'serving';
-    if (!active) {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      return;
-    }
-    intervalRef.current = setInterval(() => {
-      const updated = bookingRepository.advanceQueue(bookingId);
-      if (updated) {
-        setLocalBooking(updated);
-        void queryClient.invalidateQueries({ queryKey: [BOOKINGS_KEY, bookingId] });
-      }
-    }, 8000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [bookingId, localBooking?.status, queryClient]);
+  // Show the most-recent state: Socket.IO push wins over HTTP.
+  const entry = liveEntry ?? httpEntry ?? null;
 
-  if (isLoading) return <LoadingState label={t('common.loading')} />;
-  if (isError || !localBooking) {
+  if (isLoading && !entry) return <LoadingState label={t('common.loading')} />;
+  if ((isError && !entry) || (!isLoading && !entry)) {
     return (
       <ErrorState
         title={t('errors.loadFailed')}
@@ -74,8 +64,9 @@ export default function QueueTrackScreen() {
       />
     );
   }
+  if (!entry) return null;
 
-  const b = localBooking;
+  const b = entry;
   const isActive = b.status === 'waiting' || b.status === 'serving';
   const statusLabel = t(`queue.status.${b.status}`);
   const aheadLabel =

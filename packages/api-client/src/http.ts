@@ -40,6 +40,7 @@ export interface HttpClientConfig {
 export interface RequestOptions {
   query?: object;
   body?: unknown;
+  extraHeaders?: Record<string, string>;
 }
 
 const API_PREFIX = '/api/v1';
@@ -69,8 +70,8 @@ export class HttpClient {
   get<T>(path: string, query?: object): Promise<T> {
     return this.request<T>('GET', path, { query });
   }
-  post<T>(path: string, body?: unknown): Promise<T> {
-    return this.request<T>('POST', path, { body });
+  post<T>(path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<T> {
+    return this.request<T>('POST', path, { body, extraHeaders });
   }
   put<T>(path: string, body?: unknown): Promise<T> {
     return this.request<T>('PUT', path, { body });
@@ -134,6 +135,7 @@ export class HttpClient {
     if (options.body !== undefined) headers['content-type'] = 'application/json';
     const accessToken = await this.config.tokens?.getAccessToken();
     if (accessToken) headers.authorization = `Bearer ${accessToken}`;
+    if (options.extraHeaders) Object.assign(headers, options.extraHeaders);
 
     let response;
     try {

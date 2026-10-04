@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme, Card, EmptyState, LoadingState, Status } from '@soliton/ui';
-import type { BookingDto, BookingStatus } from '@soliton/api-contract';
+import type { BookingStatus, QueueEntryDto } from '@soliton/api-contract';
 import { useBookings } from '../../src/hooks/useBookings';
 import { formatPrice, formatDuration } from '../../src/utils/format';
 
@@ -23,7 +23,7 @@ function statusKind(status: BookingStatus): 'success' | 'warning' | 'neutral' | 
   }
 }
 
-function BookingCard({ booking }: { booking: BookingDto }) {
+function BookingCard({ booking }: { booking: QueueEntryDto }) {
   const { t } = useTranslation();
   const theme = useTheme();
   const router = useRouter();
@@ -145,7 +145,7 @@ export default function ActivityScreen() {
     );
   }
 
-  const sections: Array<{ key: string; title: string; data: BookingDto[] }> = [];
+  const sections: Array<{ key: string; title: string; data: QueueEntryDto[] }> = [];
   if (active.length > 0) sections.push({ key: 'active', title: t('activity.active'), data: active });
   if (past.length > 0) sections.push({ key: 'past', title: t('activity.past'), data: past });
 

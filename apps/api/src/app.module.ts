@@ -11,6 +11,7 @@ import { ServicesModule } from './modules/services/services.module';
 import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { MapsModule } from './modules/maps/maps.module';
 import { ProvidersModule } from './modules/providers/providers.module';
+import { QueueModule } from './modules/queue/queue.module';
 
 /**
  * Root module. Future feature modules (salon, queue, eta, …) are added here without
@@ -31,6 +32,7 @@ import { ProvidersModule } from './modules/providers/providers.module';
     ServicesModule,
     DiscoveryModule,
     MapsModule,
+    QueueModule,
   ],
 })
 export class AppModule {}

@@ -13,14 +13,18 @@ import type {
   DiscoveryPage,
   DiscoverySort,
   GeocodeResponse,
+  JoinQueueInput,
   Location,
   MapMarkersResponse,
   MySalonDto,
   OperatingHoursDto,
   PutHoursInput,
+  QueueEntryDto,
   QueueStateDto,
+  SalonQueueSnapshot,
   SalonDetailDto,
   ServiceDto,
+  StaffActionInput,
   UpdateSalonInput,
   UpdateServiceInput,
 } from '@soliton/api-contract';
@@ -111,6 +115,30 @@ export function createSolitonApi(config: HttpClientConfig) {
     },
     queue: {
       status: (salonId: string) => http.get<QueueStateDto>(`/salons/${salonId}/queue`),
+      /** Customer: join a salon's queue. Pass Idempotency-Key header via extraHeaders. */
+      join: (input: JoinQueueInput, idempotencyKey?: string) =>
+        http.post<QueueEntryDto>('/queue/join', input, idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined),
+      /** Customer: leave the queue (cancel own entry). */
+      leave: (entryId: string) => http.delete<QueueEntryDto>(`/queue/entries/${entryId}`),
+      /** Staff: get live queue snapshot for their salon. */
+      snapshot: (salonId: string) => http.get<SalonQueueSnapshot>(`/queue/${salonId}/snapshot`),
+      /** Staff: notify a customer (state: waiting → notified). */
+      notify: (entryId: string) => http.post<QueueEntryDto>(`/queue/entries/${entryId}/notify`, {}),
+      /** Staff/Customer: check in (state: notified → checked_in). */
+      checkIn: (entryId: string) => http.post<QueueEntryDto>(`/queue/entries/${entryId}/checkin`, {}),
+      /** Staff: start service (state: checked_in → in_service). */
+      startService: (entryId: string, input: StaffActionInput) =>
+        http.post<QueueEntryDto>(`/queue/entries/${entryId}/start`, input),
+      /** Staff: complete service (state: in_service → completed). */
+      complete: (entryId: string) => http.post<QueueEntryDto>(`/queue/entries/${entryId}/complete`, {}),
+      /** Staff: mark no-show. */
+      noShow: (entryId: string) => http.post<QueueEntryDto>(`/queue/entries/${entryId}/noshow`, {}),
+      /** Staff: pause queue. */
+      pause: (salonId: string) => http.post<{ status: string }>(`/queue/${salonId}/pause`, {}),
+      /** Staff: resume queue. */
+      resume: (salonId: string) => http.post<{ status: string }>(`/queue/${salonId}/resume`, {}),
+      /** Staff: close queue. */
+      close: (salonId: string) => http.post<{ status: string }>(`/queue/${salonId}/close`, {}),
     },
   };
 }

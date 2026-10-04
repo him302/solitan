@@ -1,40 +1,54 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { BookingDto } from '@soliton/api-contract';
-import { bookingRepository, type CreateBookingArgs } from '../services/bookingRepository';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { QueueEntryDto } from '@soliton/api-contract';
+import { api } from '../api';
 
 export const BOOKINGS_KEY = 'bookings';
 
+/** List all customer bookings (active + past). */
 export function useBookings() {
-  return useQuery<BookingDto[]>({
+  return useQuery<QueueEntryDto[]>({
     queryKey: [BOOKINGS_KEY],
-    queryFn: () => bookingRepository.list(),
+    queryFn: () => api.bookings.list() as Promise<QueueEntryDto[]>,
     staleTime: 5_000,
+    retry: 1,
   });
 }
 
+/** Single booking detail — polls every 8 seconds as Socket.IO fallback. */
 export function useBooking(id: string | null) {
-  return useQuery<BookingDto | null>({
+  return useQuery<QueueEntryDto | null>({
     queryKey: [BOOKINGS_KEY, id],
-    queryFn: () => (id ? bookingRepository.get(id) : null),
+    queryFn: () => (id ? (api.bookings.get(id) as Promise<QueueEntryDto>) : null),
     enabled: !!id,
     staleTime: 3_000,
+    refetchInterval: 8_000,
+    retry: 1,
   });
 }
 
+export interface CreateBookingArgs {
+  salonId: string;
+  serviceId: string;
+  idempotencyKey?: string;
+}
+
+/** Join queue (replaces Phase 2 mock booking creation). */
 export function useCreateBooking() {
   const queryClient = useQueryClient();
-  return useMutation<BookingDto, Error, CreateBookingArgs>({
-    mutationFn: (args) => bookingRepository.create(args),
+  return useMutation<QueueEntryDto, Error, CreateBookingArgs>({
+    mutationFn: ({ salonId, serviceId, idempotencyKey }) =>
+      api.queue.join({ salonId, serviceId }, idempotencyKey),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [BOOKINGS_KEY] });
     },
   });
 }
 
+/** Cancel / leave queue. */
 export function useCancelBooking() {
   const queryClient = useQueryClient();
-  return useMutation<BookingDto | null, Error, string>({
-    mutationFn: (id) => bookingRepository.cancel(id),
+  return useMutation<QueueEntryDto, Error, string>({
+    mutationFn: (id) => api.queue.leave(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [BOOKINGS_KEY] });
     },

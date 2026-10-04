@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme, Card, Divider } from '@soliton/ui';
-import type { BookingDto } from '@soliton/api-contract';
+import type { QueueEntryDto } from '@soliton/api-contract';
 import { useBookingStore } from '../../src/stores/bookingStore';
 import { useCreateBooking } from '../../src/hooks/useBookings';
 import { formatPrice, formatDuration } from '../../src/utils/format';
@@ -27,7 +27,9 @@ export default function BookingConfirmScreen() {
   const insets = useSafeAreaInsets();
   const store = useBookingStore();
   const createBooking = useCreateBooking();
-  const [confirmed, setConfirmed] = useState<BookingDto | null>(null);
+  const [confirmed, setConfirmed] = useState<QueueEntryDto | null>(null);
+  // Stable idempotency key per mount — prevents duplicate joins on accidental double-tap.
+  const idempotencyKey = useRef(`${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
   const canBook =
     store.salonId &&
@@ -40,16 +42,12 @@ export default function BookingConfirmScreen() {
   async function handleConfirm() {
     if (!canBook) return;
     try {
-      const booking = await createBooking.mutateAsync({
+      const entry = await createBooking.mutateAsync({
         salonId: store.salonId!,
-        salonName: store.salonName!,
-        salonAddress: store.salonAddress,
         serviceId: store.serviceId!,
-        serviceName: store.serviceName!,
-        servicePriceCents: store.servicePriceCents!,
-        serviceDurationMinutes: store.serviceDurationMinutes!,
+        idempotencyKey: idempotencyKey.current,
       });
-      setConfirmed(booking);
+      setConfirmed(entry);
     } catch {
       // error shown via createBooking.isError
     }
@@ -82,28 +80,26 @@ export default function BookingConfirmScreen() {
             {t('booking.successBody')}
           </Text>
 
-          {confirmed.tokenNumber !== null && (
-            <Card style={{ alignItems: 'center', width: '100%' }}>
-              <Text style={{ color: theme.colors.inkSoft, fontSize: theme.type.caption.size }}>
-                {t('queue.yourToken')}
+          <Card style={{ alignItems: 'center', width: '100%' }}>
+            <Text style={{ color: theme.colors.inkSoft, fontSize: theme.type.caption.size }}>
+              {t('queue.yourToken')}
+            </Text>
+            <Text
+              style={{
+                fontSize: theme.type.numeric.size,
+                fontWeight: theme.type.numeric.weight,
+                color: theme.colors.ink,
+                fontVariant: ['tabular-nums'],
+              }}
+            >
+              #{confirmed.tokenNumber}
+            </Text>
+            {confirmed.etaMinutes !== null && confirmed.etaMinutes > 0 && (
+              <Text style={{ color: theme.colors.inkSoft, marginTop: theme.spacing.s1 }}>
+                {t('queue.eta', { minutes: confirmed.etaMinutes })}
               </Text>
-              <Text
-                style={{
-                  fontSize: theme.type.numeric.size,
-                  fontWeight: theme.type.numeric.weight,
-                  color: theme.colors.ink,
-                  fontVariant: ['tabular-nums'],
-                }}
-              >
-                #{confirmed.tokenNumber}
-              </Text>
-              {confirmed.etaMinutes !== null && confirmed.etaMinutes > 0 && (
-                <Text style={{ color: theme.colors.inkSoft, marginTop: theme.spacing.s1 }}>
-                  {t('queue.eta', { minutes: confirmed.etaMinutes })}
-                </Text>
-              )}
-            </Card>
-          )}
+            )}
+          </Card>
 
           <Pressable
             onPress={() => {
@@ -189,7 +185,7 @@ export default function BookingConfirmScreen() {
 
             {createBooking.isError && (
               <Text style={{ color: theme.colors.danger, textAlign: 'center' }}>
-                {t('errors.generic')}
+                {createBooking.error?.message ?? t('errors.generic')}
               </Text>
             )}
 

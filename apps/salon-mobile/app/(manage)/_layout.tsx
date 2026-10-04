@@ -52,6 +52,13 @@ export default function ManageLayout() {
           tabBarIcon: ({ color }) => <TabIcon label="🕐" color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="queue"
+        options={{
+          title: t('staffQueue.title'),
+          tabBarIcon: ({ color }) => <TabIcon label="📋" color={color} />,
+        }}
+      />
     </Tabs>
   );
 }
