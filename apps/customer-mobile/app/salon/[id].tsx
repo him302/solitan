@@ -1,4 +1,5 @@
-import { ScrollView, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -6,14 +7,14 @@ import {
   useTheme,
   Card,
   Divider,
-  Button,
   ServiceRow,
   Status,
   ErrorState,
   LoadingState,
 } from '@soliton/ui';
-import type { OperatingDayDto } from '@soliton/api-contract';
+import type { OperatingDayDto, ServiceDto } from '@soliton/api-contract';
 import { useSalonDetail } from '../../src/hooks/useSalonDetail';
+import { useBookingStore } from '../../src/stores/bookingStore';
 import { formatDistance, formatPrice, formatDuration } from '../../src/utils/format';
 
 /** Salon detail screen — pushed from discovery. */
@@ -23,8 +24,10 @@ export default function SalonDetailScreen() {
   const theme = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const bookingStore = useBookingStore();
 
   const { data: salon, isLoading, isError, refetch } = useSalonDetail(id);
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
 
   if (isLoading) return <LoadingState label={t('common.loading')} />;
   if (isError || !salon) {
@@ -46,23 +49,42 @@ export default function SalonDetailScreen() {
         ? t('discovery.unconfigured')
         : t('discovery.closed');
 
-  const todayWeekday = new Date().getDay(); // 0=Sun
+  const todayWeekday = new Date().getDay();
+  const selectedService: ServiceDto | undefined = salon.services.find(
+    (s) => s.id === selectedServiceId,
+  );
+
+  function handleBook() {
+    if (!selectedService) return;
+    bookingStore.setSelectedService({
+      salonId: salon!.id,
+      salonName: salon!.name,
+      salonAddress: salon!.address,
+      serviceId: selectedService.id,
+      serviceName: selectedService.name,
+      servicePriceCents: selectedService.priceCents,
+      serviceDurationMinutes: selectedService.estimatedMinutes,
+    });
+    router.push('/booking/confirm');
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
       <ScrollView
         contentContainerStyle={{
-          paddingTop: insets.top + theme.spacing.s4,
-          paddingHorizontal: theme.spacing.s4,
-          paddingBottom: insets.bottom + theme.spacing.s6,
-          gap: theme.spacing.s4,
+          paddingTop: insets.top + theme.spacing.s2,
+          paddingBottom: insets.bottom + (selectedServiceId ? 96 : theme.spacing.s6),
         }}
       >
         {/* Back button */}
-        <Button label={`← ${t('common.back')}`} variant="tertiary" onPress={() => router.back()} />
+        <View style={{ paddingHorizontal: theme.spacing.s4, paddingBottom: theme.spacing.s2 }}>
+          <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
+            <Text style={{ fontSize: 20, color: theme.colors.ink }}>←</Text>
+          </Pressable>
+        </View>
 
         {/* Salon identity */}
-        <View>
+        <View style={{ paddingHorizontal: theme.spacing.s4, gap: theme.spacing.s2 }}>
           <Text
             style={{
               fontSize: theme.type.title.size,
@@ -73,14 +95,7 @@ export default function SalonDetailScreen() {
             {salon.name}
           </Text>
 
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: theme.spacing.s2,
-              marginTop: theme.spacing.s2,
-            }}
-          >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.s2 }}>
             <Status
               kind={salon.openState === 'open' ? 'success' : 'neutral'}
               label={openStateLabel}
@@ -93,13 +108,7 @@ export default function SalonDetailScreen() {
           </View>
 
           {salon.address && (
-            <Text
-              style={{
-                color: theme.colors.inkSoft,
-                marginTop: theme.spacing.s2,
-                fontSize: theme.type.body.size,
-              }}
-            >
+            <Text style={{ color: theme.colors.inkSoft, fontSize: theme.type.body.size }}>
               {salon.address}
               {salon.city ? `, ${salon.city}` : ''}
             </Text>
@@ -107,7 +116,7 @@ export default function SalonDetailScreen() {
         </View>
 
         {/* Services */}
-        <Card>
+        <View style={{ paddingHorizontal: theme.spacing.s4, marginTop: theme.spacing.s4 }}>
           <Text
             style={{
               fontSize: theme.type.section.size,
@@ -118,24 +127,72 @@ export default function SalonDetailScreen() {
           >
             {t('salonDetail.services')}
           </Text>
+
           {salon.services.length === 0 ? (
-            <Text style={{ color: theme.colors.inkSoft }}>{t('salonDetail.noServicesBody')}</Text>
+            <Card>
+              <Text style={{ color: theme.colors.inkSoft }}>{t('salonDetail.noServicesBody')}</Text>
+            </Card>
           ) : (
-            salon.services.map((svc, index) => (
-              <View key={svc.id}>
-                {index > 0 && <Divider />}
-                <ServiceRow
-                  name={svc.name}
-                  priceLabel={formatPrice(svc.priceCents)}
-                  durationLabel={formatDuration(svc.estimatedMinutes)}
-                />
-              </View>
-            ))
+            <Card>
+              {salon.services
+                .filter((s) => s.active)
+                .map((svc, index, arr) => (
+                  <View key={svc.id}>
+                    {index > 0 && <Divider />}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.s2 }}>
+                      <View style={{ flex: 1 }}>
+                        <ServiceRow
+                          name={svc.name}
+                          priceLabel={formatPrice(svc.priceCents)}
+                          durationLabel={formatDuration(svc.estimatedMinutes)}
+                          selected={selectedServiceId === svc.id}
+                          onPress={() =>
+                            setSelectedServiceId((prev) => (prev === svc.id ? null : svc.id))
+                          }
+                        />
+                      </View>
+                      <Pressable
+                        onPress={() => {
+                          setSelectedServiceId(svc.id);
+                          bookingStore.setSelectedService({
+                            salonId: salon.id,
+                            salonName: salon.name,
+                            salonAddress: salon.address,
+                            serviceId: svc.id,
+                            serviceName: svc.name,
+                            servicePriceCents: svc.priceCents,
+                            serviceDurationMinutes: svc.estimatedMinutes,
+                          });
+                          router.push('/booking/confirm');
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('booking.bookService')}
+                        style={{
+                          backgroundColor: theme.colors.accent,
+                          borderRadius: theme.radius.button,
+                          paddingHorizontal: theme.spacing.s3,
+                          paddingVertical: theme.spacing.s2,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: theme.colors.accentInk,
+                            fontWeight: '600',
+                            fontSize: theme.type.caption.size,
+                          }}
+                        >
+                          {t('booking.bookService')}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+            </Card>
           )}
-        </Card>
+        </View>
 
         {/* Operating hours */}
-        <Card>
+        <View style={{ paddingHorizontal: theme.spacing.s4, marginTop: theme.spacing.s4 }}>
           <Text
             style={{
               fontSize: theme.type.section.size,
@@ -146,45 +203,90 @@ export default function SalonDetailScreen() {
           >
             {t('salonDetail.hours')}
           </Text>
-          {!salon.hours.configured ? (
-            <Text style={{ color: theme.colors.inkSoft }}>
-              {t('salonDetail.hoursNotConfigured')}
-            </Text>
-          ) : (
-            salon.hours.days.map((day) => (
-              <DayRow key={day.weekday} day={day} isToday={day.weekday === todayWeekday} />
-            ))
-          )}
-        </Card>
+          <Card>
+            {!salon.hours.configured ? (
+              <Text style={{ color: theme.colors.inkSoft }}>
+                {t('salonDetail.hoursNotConfigured')}
+              </Text>
+            ) : (
+              salon.hours.days.map((day) => (
+                <DayRow key={day.weekday} day={day} isToday={day.weekday === todayWeekday} />
+              ))
+            )}
+          </Card>
+        </View>
 
-        {/* Location info */}
-        <Card>
+        {/* Location */}
+        <View style={{ paddingHorizontal: theme.spacing.s4, marginTop: theme.spacing.s4 }}>
           <Text
             style={{
               fontSize: theme.type.section.size,
               fontWeight: theme.type.section.weight,
               color: theme.colors.ink,
-              marginBottom: theme.spacing.s2,
+              marginBottom: theme.spacing.s3,
             }}
           >
             {t('salonDetail.location')}
           </Text>
-          <Text style={{ color: theme.colors.inkSoft, fontSize: theme.type.body.size }}>
-            {distanceLabel
-              ? t('salonDetail.distanceAway', { distance: distanceLabel })
-              : t('salonDetail.distanceUnavailable')}
-          </Text>
-          <Text
+          <Card>
+            <Text style={{ color: theme.colors.inkSoft, fontSize: theme.type.body.size }}>
+              {distanceLabel
+                ? t('salonDetail.distanceAway', { distance: distanceLabel })
+                : t('salonDetail.distanceUnavailable')}
+            </Text>
+            <Text
+              style={{ color: theme.colors.inkSoft, fontSize: theme.type.caption.size, marginTop: theme.spacing.s1 }}
+            >
+              {salon.location.latitude.toFixed(4)}°N, {salon.location.longitude.toFixed(4)}°E
+            </Text>
+          </Card>
+        </View>
+      </ScrollView>
+
+      {/* Sticky Book CTA — visible when a service is selected */}
+      {selectedService && (
+        <View
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            backgroundColor: theme.colors.surface,
+            borderTopWidth: theme.borderWidth.hairline,
+            borderTopColor: theme.colors.line,
+            padding: theme.spacing.s4,
+            paddingBottom: insets.bottom + theme.spacing.s4,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: theme.spacing.s3,
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: theme.type.label.size, fontWeight: theme.type.label.weight, color: theme.colors.ink }}>
+              {selectedService.name}
+            </Text>
+            <Text style={{ color: theme.colors.inkSoft, fontSize: theme.type.caption.size }}>
+              {formatDuration(selectedService.estimatedMinutes)} · {formatPrice(selectedService.priceCents)}
+            </Text>
+          </View>
+          <Pressable
+            onPress={handleBook}
+            accessibilityRole="button"
             style={{
-              color: theme.colors.inkSoft,
-              fontSize: theme.type.caption.size,
-              marginTop: theme.spacing.s1,
+              backgroundColor: theme.colors.accent,
+              borderRadius: theme.radius.button,
+              paddingHorizontal: theme.spacing.s5,
+              paddingVertical: theme.spacing.s3,
+              minHeight: theme.minTouchTarget,
+              justifyContent: 'center',
             }}
           >
-            {salon.location.latitude.toFixed(4)}°N, {salon.location.longitude.toFixed(4)}°E
-          </Text>
-        </Card>
-      </ScrollView>
+            <Text style={{ color: theme.colors.accentInk, fontWeight: '600', fontSize: theme.type.button.size }}>
+              {t('booking.confirmButton')}
+            </Text>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }

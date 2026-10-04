@@ -1,13 +1,6 @@
-/**
- * @soliton/i18n
- *
- * English + Hindi internationalization foundation. Provides the i18next instance,
- * the locale resources, and language-switching infrastructure. The React bindings
- * (react-i18next provider) and the Devanagari font asset are wired at the app layer.
- *
- * All initial app copy lives here as translation keys — screens must not hardcode
- * user-facing strings.
- */
+
+import 'intl-pluralrules';
+
 import i18next, { type i18n as I18nInstance } from 'i18next';
 
 export const SUPPORTED_LOCALES = ['en', 'hi'] as const;
@@ -157,6 +150,85 @@ export const resources = {
           },
         },
         signOut: 'Sign Out',
+      },
+      // ── Phase 2: Activity ──
+      activity: {
+        title: 'Activity',
+        active: 'Active',
+        upcoming: 'Upcoming',
+        past: 'Past',
+        noBookings: 'No bookings yet',
+        noBookingsBody: 'Book your first salon visit.',
+        explore: 'Explore salons',
+        trackButton: 'Track',
+        token: 'Token #{{token}}',
+        waitLabel: '~{{minutes}} min wait',
+      },
+      // ── Phase 2: Profile ──
+      profile: {
+        title: 'Profile',
+        account: 'Account',
+        guestUser: 'Guest',
+        signIn: 'Sign in',
+        preferences: 'Preferences',
+        support: 'Support',
+        helpCenter: 'Help center',
+        contactSupport: 'Contact support',
+        legal: 'Legal',
+        terms: 'Terms of service',
+        privacy: 'Privacy policy',
+      },
+      // ── Phase 2: Booking flow ──
+      booking: {
+        title: 'Book appointment',
+        salon: 'Salon',
+        service: 'Service',
+        duration: 'Duration',
+        price: 'Price',
+        estimatedWait: 'Est. wait',
+        confirmButton: 'Confirm booking',
+        success: "You're booked! 🎉",
+        successBody: 'Your appointment is confirmed.',
+        trackQueue: 'Track queue',
+        cancel: 'Cancel',
+        selectService: 'Select a service to book',
+        bookService: 'Book',
+      },
+      // ── Phase 2: Live queue tracking ──
+      queue: {
+        title: 'Your appointment',
+        yourToken: 'Your token',
+        serving: 'Now serving',
+        ahead: '{{count}} ahead',
+        noAhead: 'Next up!',
+        eta: '~{{minutes}} min',
+        getDirections: 'Get directions',
+        contactSalon: 'Contact salon',
+        cancelBooking: 'Cancel booking',
+        status: {
+          waiting: "You're in the queue",
+          serving: "It's your turn!",
+          completed: 'Visit complete. Thanks!',
+          cancelled: 'Booking cancelled',
+          no_show: 'Marked as no-show',
+          pending: 'Booking pending',
+        },
+      },
+      // ── Phase 2: Discovery enhancements ──
+      greeting: {
+        morning: 'Good morning 👋',
+        afternoon: 'Good afternoon 👋',
+        evening: 'Good evening 👋',
+        findNearby: 'Find a salon near you',
+      },
+      categories: {
+        haircut: 'Haircut',
+        styling: 'Styling',
+        beard: 'Beard',
+        shave: 'Shave',
+        facial: 'Facial',
+        color: 'Color',
+        other: 'Other',
       },
       // ── Weekday names (shared) ──
       weekdays: {
@@ -322,6 +394,85 @@ export const resources = {
           },
         },
         signOut: 'साइन आउट',
+      },
+      // ── Phase 2: Activity ──
+      activity: {
+        title: 'गतिविधि',
+        active: 'सक्रिय',
+        upcoming: 'आगामी',
+        past: 'पिछले',
+        noBookings: 'अभी कोई बुकिंग नहीं',
+        noBookingsBody: 'अपनी पहली सैलून विजिट बुक करें।',
+        explore: 'सैलून खोजें',
+        trackButton: 'ट्रैक करें',
+        token: 'टोकन #{{token}}',
+        waitLabel: '~{{minutes}} मिनट प्रतीक्षा',
+      },
+      // ── Phase 2: Profile ──
+      profile: {
+        title: 'प्रोफ़ाइल',
+        account: 'खाता',
+        guestUser: 'अतिथि',
+        signIn: 'साइन इन',
+        preferences: 'प्राथमिकताएं',
+        support: 'सहायता',
+        helpCenter: 'सहायता केंद्र',
+        contactSupport: 'सहायता से संपर्क करें',
+        legal: 'कानूनी',
+        terms: 'सेवा की शर्तें',
+        privacy: 'गोपनीयता नीति',
+      },
+      // ── Phase 2: Booking flow ──
+      booking: {
+        title: 'अपॉइंटमेंट बुक करें',
+        salon: 'सैलून',
+        service: 'सेवा',
+        duration: 'अवधि',
+        price: 'कीमत',
+        estimatedWait: 'अनुमानित प्रतीक्षा',
+        confirmButton: 'बुकिंग की पुष्टि करें',
+        success: 'बुकिंग हो गई! 🎉',
+        successBody: 'आपकी अपॉइंटमेंट की पुष्टि हो गई है।',
+        trackQueue: 'कतार ट्रैक करें',
+        cancel: 'रद्द करें',
+        selectService: 'बुक करने के लिए एक सेवा चुनें',
+        bookService: 'बुक करें',
+      },
+      // ── Phase 2: Live queue tracking ──
+      queue: {
+        title: 'आपकी अपॉइंटमेंट',
+        yourToken: 'आपका टोकन',
+        serving: 'अभी सेवा हो रही है',
+        ahead: '{{count}} आगे',
+        noAhead: 'अगले नंबर पर!',
+        eta: '~{{minutes}} मिनट',
+        getDirections: 'दिशा-निर्देश पाएं',
+        contactSalon: 'सैलून से संपर्क करें',
+        cancelBooking: 'बुकिंग रद्द करें',
+        status: {
+          waiting: 'आप कतार में हैं',
+          serving: 'आपकी बारी आ गई!',
+          completed: 'विजिट पूरी हुई। धन्यवाद!',
+          cancelled: 'बुकिंग रद्द हो गई',
+          no_show: 'अनुपस्थित के रूप में चिह्नित',
+          pending: 'बुकिंग लंबित',
+        },
+      },
+      // ── Phase 2: Discovery enhancements ──
+      greeting: {
+        morning: 'सुप्रभात 👋',
+        afternoon: 'नमस्कार 👋',
+        evening: 'शुभ संध्या 👋',
+        findNearby: 'अपने पास एक सैलून खोजें',
+      },
+      categories: {
+        haircut: 'हेयरकट',
+        styling: 'स्टाइलिंग',
+        beard: 'दाढ़ी',
+        shave: 'शेव',
+        facial: 'फेशियल',
+        color: 'रंग',
+        other: 'अन्य',
       },
       // ── Weekday names (shared) ──
       weekdays: {

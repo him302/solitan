@@ -144,3 +144,6 @@ export type HealthResponse = z.infer<typeof healthResponseSchema>;
 // ---------------- Phase 1: salons, services, hours, discovery ----------------
 export * from './salon';
 export * from './discovery';
+
+// ---------------- Phase 2: bookings and queue ----------------
+export * from './booking';

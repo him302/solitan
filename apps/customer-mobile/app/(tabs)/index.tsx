@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +11,15 @@ import { formatDistance, formatPrice } from '../../src/utils/format';
 
 const PAGE_SIZE = 20;
 
+const CATEGORY_KEYS = ['haircut', 'styling', 'beard', 'shave', 'facial', 'color', 'other'] as const;
+
+function greeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'morning';
+  if (hour < 17) return 'afternoon';
+  return 'evening';
+}
+
 /** Customer discovery home screen. */
 export default function DiscoveryScreen() {
   const { t } = useTranslation();
@@ -20,9 +29,9 @@ export default function DiscoveryScreen() {
 
   const [searchText, setSearchText] = useState('');
   const [activeSort, setActiveSort] = useState<DiscoverySort>('name');
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
 
-  // Debounced search: use the text after the user stops typing.
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [debounceTimer, setDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
@@ -30,11 +39,27 @@ export default function DiscoveryScreen() {
     (text: string) => {
       setSearchText(text);
       setOffset(0);
+      setActiveCategory(null);
       if (debounceTimer) clearTimeout(debounceTimer);
       const timer = setTimeout(() => setDebouncedQuery(text.trim()), 400);
       setDebounceTimer(timer);
     },
     [debounceTimer],
+  );
+
+  const onCategoryPress = useCallback(
+    (key: string) => {
+      const next = activeCategory === key ? null : key;
+      setActiveCategory(next);
+      setOffset(0);
+      if (next) {
+        setSearchText('');
+        setDebouncedQuery(t(`categories.${next}`));
+      } else {
+        setDebouncedQuery('');
+      }
+    },
+    [activeCategory, t],
   );
 
   const filters: DiscoveryFilters = useMemo(
@@ -48,12 +73,6 @@ export default function DiscoveryScreen() {
   );
 
   const { data, isLoading, isError, refetch } = useDiscovery(filters);
-
-  const openStateLabel = (state: string) => {
-    if (state === 'open') return t('discovery.open');
-    if (state === 'unconfigured') return t('discovery.unconfigured');
-    return t('discovery.closed');
-  };
 
   const renderSalon = useCallback(
     ({ item }: { item: DiscoverySalonDto }) => {
@@ -83,74 +102,120 @@ export default function DiscoveryScreen() {
 
   const ListHeader = useMemo(
     () => (
-      <View style={{ paddingHorizontal: theme.spacing.s4, paddingBottom: theme.spacing.s3 }}>
-        {/* Search bar */}
-        <TextInput
-          placeholder={t('discovery.searchPlaceholder')}
-          placeholderTextColor={theme.colors.inkSoft}
-          value={searchText}
-          onChangeText={onSearchChange}
-          style={{
-            backgroundColor: theme.colors.surface,
-            borderRadius: theme.radius.input,
-            paddingHorizontal: theme.spacing.s4,
-            paddingVertical: theme.spacing.s3,
-            fontSize: theme.type.body.size,
-            color: theme.colors.ink,
-            borderWidth: theme.borderWidth.hairline,
-            borderColor: theme.colors.line,
-          }}
-          accessibilityLabel={t('common.search')}
-          returnKeyType="search"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+      <View style={{ paddingBottom: theme.spacing.s3 }}>
+        {/* Greeting */}
+        <View style={{ paddingHorizontal: theme.spacing.s4, paddingBottom: theme.spacing.s3 }}>
+          <Text style={{ color: theme.colors.inkSoft, fontSize: theme.type.body.size }}>
+            {t(`greeting.${greeting()}`)}
+          </Text>
+          <Text
+            style={{
+              fontSize: theme.type.section.size,
+              fontWeight: theme.type.section.weight,
+              color: theme.colors.ink,
+              marginTop: 2,
+            }}
+          >
+            {t('greeting.findNearby')}
+          </Text>
+        </View>
 
-        {/* Sort chips */}
-        <View
-          style={{
-            flexDirection: 'row',
+        {/* Search bar */}
+        <View style={{ paddingHorizontal: theme.spacing.s4 }}>
+          <TextInput
+            placeholder={t('discovery.searchPlaceholder')}
+            placeholderTextColor={theme.colors.inkSoft}
+            value={searchText}
+            onChangeText={onSearchChange}
+            style={{
+              backgroundColor: theme.colors.surface,
+              borderRadius: theme.radius.input,
+              paddingHorizontal: theme.spacing.s4,
+              paddingVertical: theme.spacing.s3,
+              fontSize: theme.type.body.size,
+              color: theme.colors.ink,
+              borderWidth: theme.borderWidth.hairline,
+              borderColor: theme.colors.line,
+            }}
+            accessibilityLabel={t('common.search')}
+            returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+
+        {/* Service category chips */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingHorizontal: theme.spacing.s4,
+            paddingTop: theme.spacing.s3,
             gap: theme.spacing.s2,
-            marginTop: theme.spacing.s3,
           }}
         >
+          {CATEGORY_KEYS.map((key) => {
+            const active = activeCategory === key;
+            return (
+              <Pressable
+                key={key}
+                onPress={() => onCategoryPress(key)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                style={{
+                  paddingHorizontal: theme.spacing.s4,
+                  paddingVertical: theme.spacing.s2,
+                  borderRadius: theme.radius.pill,
+                  backgroundColor: active ? theme.colors.accent : theme.colors.surface,
+                  borderWidth: theme.borderWidth.hairline,
+                  borderColor: active ? theme.colors.accent : theme.colors.line,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: theme.type.caption.size,
+                    fontWeight: theme.type.label.weight,
+                    color: active ? theme.colors.accentInk : theme.colors.ink,
+                  }}
+                >
+                  {t(`categories.${key}`)}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        {/* Sort chips */}
+        <View style={{ flexDirection: 'row', gap: theme.spacing.s2, marginTop: theme.spacing.s3, paddingHorizontal: theme.spacing.s4 }}>
           <SortChip
             label={t('discovery.sortName')}
             active={activeSort === 'name'}
-            onPress={() => {
-              setActiveSort('name');
-              setOffset(0);
-            }}
+            onPress={() => { setActiveSort('name'); setOffset(0); }}
           />
           <SortChip
             label={t('discovery.sortNearest')}
             active={activeSort === 'nearest'}
-            onPress={() => {
-              setActiveSort('nearest');
-              setOffset(0);
-            }}
+            onPress={() => { setActiveSort('nearest'); setOffset(0); }}
           />
         </View>
 
-        {data && (
+        {data && data.items.length > 0 && (
           <Text
             style={{
               color: theme.colors.inkSoft,
               fontSize: theme.type.caption.size,
               marginTop: theme.spacing.s3,
+              paddingHorizontal: theme.spacing.s4,
             }}
           >
-            {data.items.length === 0
-              ? ''
-              : `${t('discovery.allSalons')} · ${data.appliedSort === 'nearest' ? t('discovery.sortNearest') : t('discovery.sortName')}`}
+            {`${t('discovery.allSalons')} · ${data.appliedSort === 'nearest' ? t('discovery.sortNearest') : t('discovery.sortName')}`}
           </Text>
         )}
       </View>
     ),
-    [theme, searchText, activeSort, data, t, onSearchChange],
+    [theme, searchText, activeSort, activeCategory, data, t, onSearchChange, onCategoryPress],
   );
 
-  // Pagination
   const loadMore = useCallback(() => {
     if (data?.page.nextOffset !== null && data?.page.nextOffset !== undefined) {
       setOffset(data.page.nextOffset);
@@ -159,8 +224,8 @@ export default function DiscoveryScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg, paddingTop: insets.top }}>
-      {/* Title */}
-      <View style={{ paddingHorizontal: theme.spacing.s4, paddingVertical: theme.spacing.s4 }}>
+      {/* Title bar */}
+      <View style={{ paddingHorizontal: theme.spacing.s4, paddingTop: theme.spacing.s4, paddingBottom: theme.spacing.s2 }}>
         <Text
           style={{
             fontSize: theme.type.title.size,
@@ -173,14 +238,20 @@ export default function DiscoveryScreen() {
       </View>
 
       {isLoading ? (
-        <LoadingState label={t('common.loading')} />
+        <>
+          {ListHeader}
+          <LoadingState label={t('common.loading')} />
+        </>
       ) : isError ? (
-        <ErrorState
-          title={t('errors.loadFailed')}
-          body={t('errors.networkError')}
-          onRetry={() => refetch()}
-          retryLabel={t('common.retry')}
-        />
+        <>
+          {ListHeader}
+          <ErrorState
+            title={t('errors.loadFailed')}
+            body={t('errors.networkError')}
+            onRetry={() => refetch()}
+            retryLabel={t('common.retry')}
+          />
+        </>
       ) : data && data.items.length === 0 ? (
         <>
           {ListHeader}
@@ -201,16 +272,7 @@ export default function DiscoveryScreen() {
   );
 }
 
-/** Sort filter chip. */
-function SortChip({
-  label,
-  active,
-  onPress,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) {
+function SortChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   const theme = useTheme();
   return (
     <Pressable

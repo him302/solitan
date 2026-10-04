@@ -19,7 +19,8 @@
     "test": "echo \"@soliton/i18n: no tests in Phase 0B\""
   },
   "dependencies": {
-    "i18next": "^23.16.0"
+    "i18next": "^23.16.0",
+    "intl-pluralrules": "^2.0.1"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

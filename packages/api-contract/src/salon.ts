@@ -217,12 +217,17 @@ export interface RatingSummary {
 }
 
 /**
- * Live Soliton queue info. Phase 1 has no queue engine, so this is always
- * `{ available: false }` — the UI must render an honest non-live state (Phase 2 widens it).
+ * Live Soliton queue info. Phase 1 always returns `{ available: false }`.
+ * Phase 2 widens to include live queue data when the queue engine is running.
  */
-export interface LiveQueueInfo {
-  available: false;
-}
+export type LiveQueueInfo =
+  | { available: false }
+  | {
+      available: true;
+      currentToken: number | null;
+      totalWaiting: number;
+      etaMinutes: number | null;
+    };
 
 /** Public-safe salon fields only. Never includes owner, staff, audit or security data. */
 export interface PublicSalonDto {

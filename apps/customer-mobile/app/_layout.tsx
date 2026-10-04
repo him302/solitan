@@ -10,6 +10,8 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="salon/[id]" options={{ presentation: 'card' }} />
+        <Stack.Screen name="booking/confirm" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="queue/[bookingId]" options={{ presentation: 'card' }} />
       </Stack>
     </AppProviders>
   );

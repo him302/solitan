@@ -1,8 +1,13 @@
 import { Tabs } from 'expo-router';
+import { Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@soliton/ui';
 
-/** Bottom tab layout for customer navigation. */
+function TabIcon({ label }: { label: string }) {
+  return <Text style={{ fontSize: 20 }}>{label}</Text>;
+}
+
+/** Bottom tab layout for customer navigation: Discover | Activity | Profile */
 export default function TabLayout() {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -16,6 +21,7 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.line,
+          borderTopWidth: theme.borderWidth.hairline,
         },
         tabBarLabelStyle: {
           fontSize: theme.type.caption.size,
@@ -27,22 +33,28 @@ export default function TabLayout() {
         name="index"
         options={{
           title: t('discovery.title'),
-          tabBarIcon: ({ color }) => <TabIcon label="🔍" color={color} />,
+          tabBarIcon: () => <TabIcon label="🔍" />,
         }}
       />
       <Tabs.Screen
-        name="settings"
+        name="activity"
         options={{
-          title: t('settings.title'),
-          tabBarIcon: ({ color }) => <TabIcon label="⚙" color={color} />,
+          title: t('activity.title'),
+          tabBarIcon: () => <TabIcon label="📋" />,
         }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: t('profile.title'),
+          tabBarIcon: () => <TabIcon label="👤" />,
+        }}
+      />
+      {/* Hidden: legacy settings route kept for backward compat, functionality moved to profile */}
+      <Tabs.Screen
+        name="settings"
+        options={{ href: null }}
       />
     </Tabs>
   );
-}
-
-/** Simple emoji-based tab icon (avoids adding an icon library dependency). */
-function TabIcon({ label, color }: { label: string; color: string }) {
-  const { Text } = require('react-native');
-  return <Text style={{ fontSize: 20, color }}>{label}</Text>;
 }
