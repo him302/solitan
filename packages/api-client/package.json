@@ -1,0 +1,29 @@
+{
+  "name": "@soliton/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Typed HTTP client for the Soliton API (shared by mobile and admin).",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "jest --passWithNoTests",
+    "dev": "echo \"@soliton/api-client: no dev task\""
+  },
+  "dependencies": {
+    "@soliton/api-contract": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.6.3"
+  }
+}

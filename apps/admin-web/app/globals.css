@@ -1,0 +1,47 @@
+/* Calm Momentum — admin base. Design primitives come from the shared token stylesheet
+   (@soliton/design-tokens/tokens.css), imported in layout.tsx. This file only adds
+   resets and element defaults that consume the generated CSS variables. */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  line-height: 1.5;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  min-height: 44px; /* accessible touch target */
+  border-radius: var(--radius-button);
+  border: 1px solid var(--color-line);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  padding: 0 16px;
+  font: inherit;
+  cursor: pointer;
+}
+
+input {
+  min-height: 44px;
+  border-radius: var(--radius-input);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  padding: 0 12px;
+  font: inherit;
+}

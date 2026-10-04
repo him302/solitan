@@ -1,0 +1,30 @@
+{
+  "name": "@soliton/realtime-client",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Client-side Socket.IO abstraction for Soliton realtime (connection, rooms, reconnect, snapshot).",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "jest --passWithNoTests",
+    "dev": "echo \"@soliton/realtime-client: no dev task\""
+  },
+  "dependencies": {
+    "@soliton/api-contract": "workspace:*",
+    "socket.io-client": "^4.8.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.6.3"
+  }
+}

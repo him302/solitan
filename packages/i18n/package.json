@@ -1,0 +1,27 @@
+{
+  "name": "@soliton/i18n",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "English + Hindi internationalization foundation (i18next) for Soliton.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "echo \"@soliton/i18n: no dev task in Phase 0B\"",
+    "test": "echo \"@soliton/i18n: no tests in Phase 0B\""
+  },
+  "dependencies": {
+    "i18next": "^23.16.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

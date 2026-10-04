@@ -1,0 +1,42 @@
+# Local development database for Soliton (Phase 0D).
+# PostgreSQL + PostGIS only. Redis and other services belong to later phases.
+# Credentials come from the environment (with safe local defaults) — no production secrets.
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: soliton-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-soliton}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soliton}
+      POSTGRES_DB: ${POSTGRES_DB:-soliton}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - soliton-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-soliton} -d ${POSTGRES_DB:-soliton}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: soliton-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - soliton-redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  soliton-pgdata:
+    name: soliton-pgdata
+  soliton-redisdata:
+    name: soliton-redisdata

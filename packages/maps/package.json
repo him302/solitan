@@ -1,0 +1,26 @@
+{
+  "name": "@soliton/maps",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Provider-neutral maps abstraction for Soliton (free local provider only: no network, no API key).",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "jest --passWithNoTests",
+    "dev": "echo \"@soliton/maps: no dev task\""
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.6.3"
+  }
+}

@@ -1,0 +1,10 @@
+services:
+  solitonadminweb:
+    image: solitonadminweb
+    build:
+      context: apps/admin-web
+      dockerfile: ./Dockerfile
+    environment:
+      NODE_ENV: production
+    ports:
+      - 3000:3000

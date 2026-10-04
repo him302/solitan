@@ -1,0 +1,24 @@
+{
+  "name": "@soliton/shared-types",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared domain types and enums for the Soliton platform.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "echo \"@soliton/shared-types: no dev task in Phase 0A\"",
+    "test": "echo \"@soliton/shared-types: no tests in Phase 0A\""
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
