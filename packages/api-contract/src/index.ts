@@ -158,3 +158,6 @@ export * from './appointment';
 export * from './review';
 export * from './complaint';
 export * from './payment';
+
+// ---------------- Phase 6: analytics ----------------
+export * from './analytics';

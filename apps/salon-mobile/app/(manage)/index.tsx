@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme, Card, Status, LoadingState, ErrorState, Button } from '@soliton/ui';
 import { useMySalon } from '../../src/hooks/useMySalon';
+import { useSalonOverview } from '../../src/hooks/useReporting';
 import { useAuthStore } from '../../src/auth/authStore';
 import { api } from '../../src/api';
 
@@ -17,6 +18,7 @@ export default function DashboardScreen() {
   const user = useAuthStore((s) => s.user);
 
   const { data: salon, isLoading, isError, refetch } = useMySalon();
+  const { data: overview } = useSalonOverview(salon?.id ?? null, 'today');
 
   if (isLoading) return <LoadingState label={t('common.loading')} />;
   if (isError || !salon) {
@@ -101,6 +103,33 @@ export default function DashboardScreen() {
           )}
         </Card>
 
+        {/* Today's stats */}
+        {overview && (
+          <View style={{ gap: theme.spacing.s3 }}>
+            <Text style={{ fontSize: theme.type.label.size, fontWeight: theme.type.label.weight, color: theme.colors.ink }}>
+              Today
+            </Text>
+            <View style={{ flexDirection: 'row', gap: theme.spacing.s3 }}>
+              <StatCard label="Live Queue" value={String(overview.currentQueueSize)} accent theme={theme} />
+              <StatCard label="Completed"  value={String(overview.todayCompleted)}  theme={theme} />
+              <StatCard label="Appointments" value={String(overview.todayAppointments)} theme={theme} />
+            </View>
+            <View style={{ flexDirection: 'row', gap: theme.spacing.s3 }}>
+              <StatCard
+                label="Avg Wait"
+                value={overview.avgWaitMinutes !== null ? `${overview.avgWaitMinutes} min` : '—'}
+                theme={theme}
+              />
+              <StatCard
+                label="Rating"
+                value={overview.averageRating !== null ? `${overview.averageRating.toFixed(1)} ★` : '—'}
+                theme={theme}
+              />
+              <StatCard label="Reviews" value={String(overview.reviewCount)} theme={theme} />
+            </View>
+          </View>
+        )}
+
         {/* Quick links */}
         <View style={{ gap: theme.spacing.s3 }}>
           <DashboardLink
@@ -179,4 +208,48 @@ function DashboardLink({
 
 async function api_logout() {
   await api.auth.logout();
+}
+
+function StatCard({
+  label,
+  value,
+  accent,
+  theme,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+  theme: ReturnType<typeof useTheme>;
+}) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: theme.colors.surface,
+        borderRadius: theme.radius.card,
+        padding: theme.spacing.s3,
+        alignItems: 'center',
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 22,
+          fontWeight: '700',
+          color: accent ? theme.colors.accent : theme.colors.ink,
+        }}
+      >
+        {value}
+      </Text>
+      <Text
+        style={{
+          fontSize: theme.type.caption.size,
+          color: theme.colors.inkSoft,
+          textAlign: 'center',
+          marginTop: 2,
+        }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
 }

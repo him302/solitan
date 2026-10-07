@@ -73,6 +73,13 @@ export default function ManageLayout() {
           tabBarIcon: ({ color }) => <TabIcon label="⭐" color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="analytics"
+        options={{
+          title: 'Analytics',
+          tabBarIcon: ({ color }) => <TabIcon label="📊" color={color} />,
+        }}
+      />
     </Tabs>
   );
 }

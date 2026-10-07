@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { AppointmentStatus, EntrySource, EntryState, PrismaClient } from '@prisma/client';
 import { hash } from '@node-rs/argon2';
 
 /**
@@ -521,6 +521,142 @@ async function main(): Promise<void> {
     },
   });
 
+  // === Phase 6 historical data (for analytics) ===
+  // Spread ~30 completed queue entries and appointments across the past 4 weeks
+  // so that charts and health scores have meaningful data.
+  const P6_IDS = {
+    q: Array.from({ length: 30 }, (_, i) => `00000000-0000-4000-8600-${String(i + 1).padStart(12, '0')}`),
+    a: Array.from({ length: 10 }, (_, i) => `00000000-0000-4000-8601-${String(i + 1).padStart(12, '0')}`),
+    r: Array.from({ length: 5 }, (_, i) => `00000000-0000-4000-8602-${String(i + 1).padStart(12, '0')}`),
+  } as const;
+
+  // Queue entries spread over ~28 days with varying wait times
+  const queueEntryData = [
+    // serviceId, daysAgo, waitMinutes, state
+    [ID.salon1SvcHaircut, 28, 12, 'completed'],
+    [ID.salon1SvcBeard,   27, 8,  'completed'],
+    [ID.salon1SvcHaircut, 26, 20, 'completed'],
+    [ID.salon1SvcColor,   25, 35, 'completed'],
+    [ID.salon1SvcHaircut, 24, 10, 'completed'],
+    [ID.salon1SvcBeard,   23, 7,  'completed'],
+    [ID.salon1SvcHaircut, 22, 15, 'completed'],
+    [ID.salon1SvcHaircut, 21, 18, 'completed'],
+    [ID.salon1SvcBeard,   20, 9,  'completed'],
+    [ID.salon1SvcColor,   19, 40, 'completed'],
+    [ID.salon1SvcHaircut, 18, 11, 'completed'],
+    [ID.salon1SvcHaircut, 17, 13, 'completed'],
+    [ID.salon1SvcBeard,   16, 6,  'completed'],
+    [ID.salon1SvcHaircut, 15, 22, 'completed'],
+    [ID.salon1SvcColor,   14, 30, 'completed'],
+    [ID.salon1SvcHaircut, 13, 9,  'completed'],
+    [ID.salon1SvcBeard,   12, 11, 'completed'],
+    [ID.salon1SvcHaircut, 11, 16, 'completed'],
+    [ID.salon1SvcHaircut, 10, 14, 'completed'],
+    [ID.salon1SvcBeard,    9, 8,  'completed'],
+    [ID.salon1SvcHaircut,  8, 19, 'completed'],
+    [ID.salon1SvcColor,    7, 45, 'completed'],
+    [ID.salon1SvcHaircut,  6, 10, 'completed'],
+    [ID.salon1SvcBeard,    5, 7,  'completed'],
+    [ID.salon1SvcHaircut,  4, 12, 'cancelled'],
+    [ID.salon1SvcHaircut,  3, 0,  'no_show'],
+    [ID.salon1SvcBeard,    2, 8,  'completed'],
+    [ID.salon1SvcHaircut,  2, 15, 'completed'],
+    [ID.salon1SvcColor,    1, 28, 'completed'],
+    [ID.salon1SvcHaircut,  1, 11, 'completed'],
+  ] as const;
+
+  for (let i = 0; i < queueEntryData.length; i++) {
+    const [serviceId, daysAgo, waitMinutes, state] = queueEntryData[i];
+    const createdAt = new Date(Date.now() - (daysAgo as number) * 24 * 60 * 60 * 1000);
+    const startedAt = state === 'completed'
+      ? new Date(createdAt.getTime() + (waitMinutes as number) * 60 * 1000)
+      : null;
+    const completedAt = startedAt ? new Date(startedAt.getTime() + 25 * 60 * 1000) : null;
+
+    await prisma.queueEntry.upsert({
+      where: { id: P6_IDS.q[i] },
+      update: {},
+      create: {
+        id: P6_IDS.q[i],
+        salonId: ID.salon1,
+        queueId: ID.salon1Queue,
+        customerId: ID.customer,
+        serviceId: serviceId as string,
+        source: EntrySource.walkin,
+        tokenNumber: 100 + i,
+        sequenceNo: 1000 + i,
+        state: state as EntryState,
+        createdAt,
+        ...(startedAt ? { startedAt } : {}),
+        ...(completedAt ? { completedAt } : {}),
+      },
+    });
+  }
+
+  // Historical appointments for salon1
+  const apptData = [
+    [ID.salon1SvcHaircut, 25, 'completed'],
+    [ID.salon1SvcBeard,   20, 'completed'],
+    [ID.salon1SvcColor,   15, 'completed'],
+    [ID.salon1SvcHaircut, 12, 'completed'],
+    [ID.salon1SvcBeard,    9, 'completed'],
+    [ID.salon1SvcHaircut,  6, 'completed'],
+    [ID.salon1SvcColor,    4, 'no_show'],
+    [ID.salon1SvcHaircut,  3, 'cancelled'],
+    [ID.salon1SvcBeard,    2, 'completed'],
+    [ID.salon1SvcHaircut,  1, 'completed'],
+  ] as const;
+
+  for (let i = 0; i < apptData.length; i++) {
+    const [serviceId, daysAgo, status] = apptData[i];
+    const scheduledAt = new Date(Date.now() - (daysAgo as number) * 24 * 60 * 60 * 1000);
+    await prisma.appointment.upsert({
+      where: { id: P6_IDS.a[i] },
+      update: {},
+      create: {
+        id: P6_IDS.a[i],
+        salonId: ID.salon1,
+        customerId: ID.customer,
+        serviceId: serviceId as string,
+        scheduledAt,
+        durationMinutes: 30,
+        status: status as AppointmentStatus,
+      },
+    });
+  }
+
+  // Additional reviews to give a more realistic rating sample
+  const reviewData = [
+    [P6_IDS.a[0], 5, 'Always a pleasure. Best haircut in Raipur!'],
+    [P6_IDS.a[1], 4, 'Quick and clean beard trim.'],
+    [P6_IDS.a[2], 3, 'Good coloring but a bit rushed.'],
+    [P6_IDS.a[3], 5, 'Very friendly staff.'],
+    [P6_IDS.a[4], 4, 'Nice experience overall.'],
+  ] as const;
+
+  for (let i = 0; i < reviewData.length; i++) {
+    const [appointmentId, rating, comment] = reviewData[i];
+    await prisma.review.upsert({
+      where: { id: P6_IDS.r[i] },
+      update: {},
+      create: {
+        id: P6_IDS.r[i],
+        salonId: ID.salon1,
+        customerId: ID.customer,
+        appointmentId: appointmentId as string,
+        rating: rating as number,
+        comment: comment as string,
+        status: 'published',
+      },
+    });
+  }
+
+  // Update salon1 rating to reflect all reviews
+  await prisma.salon.update({
+    where: { id: ID.salon1 },
+    data: { averageRating: 4.1, reviewCount: 7 },
+  });
+
   // === Operating hours ===
   // Delete existing hours for all seeded salons, then create fresh.
   const salonIds = salons.map((s) => s.id);
@@ -574,6 +710,7 @@ async function main(): Promise<void> {
   console.log('  Services: 16 services (1 inactive) across 5 salons');
   console.log('  Hours: 4 salons with hours, 1 without (unconfigured)');
   console.log('  Phase 5: 2 appointments, 2 reviews, 1 complaint, 1 payment');
+  console.log('  Phase 6: 30 queue entries, 10 appointments, 5 reviews (historical)');
   console.log('Dev password for all seeded accounts: ' + DEV_PASSWORD);
 }
 

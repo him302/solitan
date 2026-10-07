@@ -18,6 +18,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { ReportingModule } from './modules/reporting/reporting.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { AdminModule } from './modules/admin/admin.module';
     ComplaintsModule,
     PaymentsModule,
     AdminModule,
+    ReportingModule,
   ],
 })
 export class AppModule {}

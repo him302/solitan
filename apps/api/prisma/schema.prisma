@@ -118,6 +118,7 @@ model User {
   notifications Notification[]
   deviceTokens  DeviceToken[]
   complaints    Complaint[]    @relation("ComplaintReporter")
+  platformAudits PlatformAudit[] @relation("PlatformAuditActor")
   refreshTokens RefreshToken[]
   auditActions  QueueAudit[]   @relation("AuditActor")
   appointments  Appointment[]
@@ -451,6 +452,22 @@ model QueueAudit {
 
   @@index([salonId, at])
   @@map("queue_audit")
+}
+
+model PlatformAudit {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId    String   @db.Uuid
+  actor      User     @relation("PlatformAuditActor", fields: [actorId], references: [id])
+  action     String
+  entityType String
+  entityId   String   @db.Uuid
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("platform_audits")
 }
 
 model RefreshToken {

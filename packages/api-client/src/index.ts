@@ -4,6 +4,11 @@
  * TokenStore), and no React: usable from both mobile apps and the admin web.
  */
 import type {
+  AdminSalonListDto,
+  AdminSalonListQuery,
+  AdminUpdateSalonStatusInput,
+  AnalyticsQuery,
+  AppointmentAnalyticsDto,
   AppointmentDto,
   AppointmentSummaryDto,
   AvailabilitySlot,
@@ -17,6 +22,7 @@ import type {
   CreateSalonInput,
   CreateServiceInput,
   CurrentUser,
+  CustomerAnalyticsDto,
   DiscoveryPage,
   DiscoverySort,
   GeocodeResponse,
@@ -28,13 +34,19 @@ import type {
   MySalonDto,
   OperatingHoursDto,
   PaymentDto,
+  PeakHoursDto,
+  PlatformOverviewDto,
   PutHoursInput,
+  QueueAnalyticsDto,
   QueueEntryDto,
   QueueStateDto,
   ReviewDto,
+  SalonHealthScoreDto,
+  SalonOverviewDto,
   SalonQueueSnapshot,
   SalonDetailDto,
   SalonRatingSummary,
+  ServiceAnalyticsDto,
   ServiceDto,
   StaffActionInput,
   UpdateReviewInput,
@@ -230,6 +242,35 @@ export function createSolitonApi(config: HttpClientConfig) {
         http.patch<ComplaintDto>(`/admin/complaints/${id}`, input),
       listPayments: (cursor?: string, limit?: number, status?: string) =>
         http.get<{ items: PaymentDto[]; nextCursor: string | null }>('/admin/payments', { cursor, limit, status }),
+      // Phase 6 analytics
+      analyticsOverview: (q?: AnalyticsQuery) =>
+        http.get<PlatformOverviewDto>('/admin/analytics/overview', q),
+      analyticsQueues: (q?: AnalyticsQuery) =>
+        http.get<QueueAnalyticsDto>('/admin/analytics/queues', q),
+      analyticsAppointments: (q?: AnalyticsQuery) =>
+        http.get<AppointmentAnalyticsDto>('/admin/analytics/appointments', q),
+      // Salon directory
+      listSalons: (q: AdminSalonListQuery) =>
+        http.get<AdminSalonListDto>('/admin/salons', q as Record<string, unknown>),
+      updateSalonStatus: (id: string, input: AdminUpdateSalonStatusInput) =>
+        http.patch<void>(`/admin/salons/${id}/status`, input),
+    },
+    // Phase 6 salon analytics (owner/staff)
+    salonAnalytics: {
+      overview: (salonId: string, q?: AnalyticsQuery) =>
+        http.get<SalonOverviewDto>(`/salons/${salonId}/analytics/overview`, q),
+      queues: (salonId: string, q?: AnalyticsQuery) =>
+        http.get<QueueAnalyticsDto>(`/salons/${salonId}/analytics/queues`, q),
+      appointments: (salonId: string, q?: AnalyticsQuery) =>
+        http.get<AppointmentAnalyticsDto>(`/salons/${salonId}/analytics/appointments`, q),
+      services: (salonId: string, q?: AnalyticsQuery) =>
+        http.get<ServiceAnalyticsDto>(`/salons/${salonId}/analytics/services`, q),
+      customers: (salonId: string, q?: AnalyticsQuery) =>
+        http.get<CustomerAnalyticsDto>(`/salons/${salonId}/analytics/customers`, q),
+      peakHours: (salonId: string, q?: AnalyticsQuery) =>
+        http.get<PeakHoursDto>(`/salons/${salonId}/analytics/peak-hours`, q),
+      health: (salonId: string) =>
+        http.get<SalonHealthScoreDto>(`/salons/${salonId}/analytics/health`),
     },
   };
 }
