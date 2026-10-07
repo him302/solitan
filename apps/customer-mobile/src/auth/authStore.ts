@@ -1,13 +1,10 @@
 import { create } from 'zustand';
 import type { AuthTokens, CurrentUser } from '@soliton/api-contract';
 import { tokenStorage } from './tokenStorage';
+import { api } from '../api';
 
 export type AuthStatus = 'unknown' | 'authenticated' | 'unauthenticated';
 
-/**
- * Auth state abstraction. Holds the current session in memory and persists only the
- * tokens to secure storage. Screens/API wiring are added in later phases.
- */
 interface AuthState {
   status: AuthStatus;
   user: CurrentUser | null;
@@ -21,13 +18,24 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   async hydrate() {
     const accessToken = await tokenStorage.getAccessToken();
-    set({ status: accessToken ? 'authenticated' : 'unauthenticated' });
+    if (!accessToken) {
+      set({ status: 'unauthenticated' });
+      return;
+    }
+    try {
+      const user = await api.auth.me();
+      set({ status: 'authenticated', user });
+    } catch {
+      await tokenStorage.clear();
+      set({ status: 'unauthenticated', user: null });
+    }
   },
   async setSession(tokens, user) {
     await tokenStorage.setTokens(tokens.accessToken, tokens.refreshToken);
     set({ status: 'authenticated', user });
   },
   async signOut() {
+    try { await api.auth.logout(); } catch { /* best-effort */ }
     await tokenStorage.clear();
     set({ status: 'unauthenticated', user: null });
   },

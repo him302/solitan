@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -11,19 +13,50 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { api } from '../src/api';
+import { useAuthStore } from '../src/auth/authStore';
 
 const MAROON = '#A50000';
 
 type Mode = 'landing' | 'email';
 
+function routeByRole(role: string | undefined, router: ReturnType<typeof useRouter>) {
+  if (role === 'owner' || role === 'staff') {
+    router.replace('/(manage)');
+  } else {
+    router.replace('/(tabs)');
+  }
+}
+
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { setSession } = useAuthStore();
   const [mode, setMode] = useState<Mode>('landing');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const goToMain = () => router.replace('/(tabs)');
+  const goToCustomer = () => router.replace('/(tabs)');
+
+  async function handleEmailSignIn() {
+    if (!email.trim() || !password) {
+      Alert.alert('Sign in', 'Please enter your email and password.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const tokens = await api.auth.login(email.trim(), password);
+      const user = await api.auth.me();
+      await setSession(tokens, user);
+      routeByRole(user.role, router);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Sign in failed. Check your credentials.';
+      Alert.alert('Sign in failed', msg);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <KeyboardAvoidingView
@@ -37,7 +70,6 @@ export default function LoginScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Logo mark */}
         <View style={styles.logoMark}>
           <Text style={styles.logoSymbol}>✦</Text>
         </View>
@@ -47,23 +79,17 @@ export default function LoginScreen() {
 
         {mode === 'landing' ? (
           <View style={styles.optionsContainer}>
-            {/* Google */}
-            <Pressable style={styles.outlinedBtn} onPress={goToMain}>
+            <Pressable style={styles.outlinedBtn} onPress={goToCustomer}>
               <Text style={styles.optionIcon}>G</Text>
               <Text style={styles.outlinedBtnText}>Continue with Google</Text>
             </Pressable>
 
-            {/* Phone */}
-            <Pressable style={styles.outlinedBtn} onPress={goToMain}>
+            <Pressable style={styles.outlinedBtn} onPress={goToCustomer}>
               <Text style={styles.optionIcon}>📱</Text>
               <Text style={styles.outlinedBtnText}>Continue with Phone</Text>
             </Pressable>
 
-            {/* Email */}
-            <Pressable
-              style={styles.outlinedBtn}
-              onPress={() => setMode('email')}
-            >
+            <Pressable style={styles.outlinedBtn} onPress={() => setMode('email')}>
               <Text style={styles.optionIcon}>✉️</Text>
               <Text style={styles.outlinedBtnText}>Continue with Email</Text>
             </Pressable>
@@ -74,8 +100,7 @@ export default function LoginScreen() {
               <View style={styles.dividerLine} />
             </View>
 
-            {/* Guest */}
-            <Pressable onPress={goToMain}>
+            <Pressable onPress={goToCustomer}>
               <Text style={styles.guestText}>Continue as Guest</Text>
             </Pressable>
           </View>
@@ -91,6 +116,7 @@ export default function LoginScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              editable={!loading}
             />
 
             <Text style={[styles.formLabel, { marginTop: 16 }]}>Password</Text>
@@ -101,13 +127,22 @@ export default function LoginScreen() {
               value={password}
               onChangeText={setPassword}
               secureTextEntry
+              editable={!loading}
             />
 
-            <Pressable style={styles.primaryBtn} onPress={goToMain}>
-              <Text style={styles.primaryBtnText}>Sign In</Text>
+            <Pressable
+              style={[styles.primaryBtn, loading && { opacity: 0.7 }]}
+              onPress={() => void handleEmailSignIn()}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.primaryBtnText}>Sign In</Text>
+              )}
             </Pressable>
 
-            <Pressable onPress={goToMain} style={{ marginTop: 16, alignSelf: 'center' }}>
+            <Pressable onPress={goToCustomer} style={{ marginTop: 16, alignSelf: 'center' }}>
               <Text style={styles.guestText}>Continue as Guest</Text>
             </Pressable>
 
@@ -234,6 +269,8 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 24,
+    minHeight: 52,
+    justifyContent: 'center',
   },
   primaryBtnText: {
     color: '#FFFFFF',
