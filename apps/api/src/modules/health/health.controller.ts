@@ -1,14 +1,14 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import type { HealthResponse, ProviderPolicyDto } from '@soliton/api-contract';
 import { HealthService } from './health.service';
 import { ProviderPolicyService } from '../providers/provider-policy.service';
 import { RedisService } from '../realtime/redis.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 /**
- * Health endpoints. Liveness/readiness report PROCESS health only. The realtime
- * endpoint reports the REAL Redis status — it never claims Redis is healthy when the
- * connection is unavailable.
+ * Health endpoints. Liveness reports process state. Readiness checks database
+ * connectivity before accepting traffic. The realtime endpoint honestly reports Redis.
  */
 @ApiTags('health')
 @Controller({ path: 'health', version: '1' })
@@ -17,6 +17,7 @@ export class HealthController {
     private readonly health: HealthService,
     private readonly redis: RedisService,
     private readonly providers: ProviderPolicyService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get()
@@ -26,11 +27,14 @@ export class HealthController {
   }
 
   @Get('ready')
-  @ApiOkResponse({
-    description: 'Process has booted and is accepting traffic (no dependency checks yet).',
-  })
-  readiness(): HealthResponse {
-    return this.health.getHealth();
+  @ApiOkResponse({ description: 'Process is ready: database is reachable.' })
+  async readiness(): Promise<HealthResponse & { database: string }> {
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+    } catch {
+      throw new ServiceUnavailableException('Database not ready');
+    }
+    return { ...this.health.getHealth(), database: 'up' };
   }
 
   /** Which provider is active per concern. Soliton has no paid mode, so no external calls. */

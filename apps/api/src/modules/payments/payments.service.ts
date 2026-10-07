@@ -201,7 +201,7 @@ export class PaymentsService {
     status?: string,
   ): Promise<{ items: PaymentDto[]; nextCursor: string | null }> {
     const rows = await this.prisma.payment.findMany({
-      where: status ? { status: status as any } : {},
+      where: status ? { status: status as Prisma.PaymentWhereInput['status'] } : {},
       orderBy: { createdAt: 'desc' },
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

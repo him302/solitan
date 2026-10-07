@@ -48,6 +48,15 @@ export const envSchema = z.object({
   ANALYTICS_PROVIDER: z.enum(['local']).default('local'),
 
   /**
+   * Pilot mode: enables operational warnings, makes mock providers explicit, and keeps
+   * risky features disabled. Safe to enable during initial Raipur pilot.
+   */
+  PILOT_MODE: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+
+  /**
    * Optional XYZ raster tile template for the local map style, ideally SELF-HOSTED
    * (public OpenStreetMap tile servers must not be used at scale). Unset = blank canvas,
    * which makes no tile requests at all.

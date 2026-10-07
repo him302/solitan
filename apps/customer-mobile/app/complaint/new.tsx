@@ -78,8 +78,8 @@ export default function ComplaintScreen() {
         salonId: salonId || undefined,
       });
       setSubmitted(true);
-    } catch (e: any) {
-      Alert.alert('Could not submit', e?.message ?? 'Please try again.');
+    } catch (e: unknown) {
+      Alert.alert('Could not submit', e instanceof Error ? e.message : 'Please try again.');
     }
   }
 

@@ -24,7 +24,16 @@ interface SocketData {
 
 type Ack = { ok: true; room?: string } | { ok: false; error: string };
 
-@WebSocketGateway({ cors: { origin: true, credentials: true } })
+@WebSocketGateway({
+  cors: {
+    // Mirrors the HTTP CORS policy. '*' in dev reflects any origin; in production only the
+    // configured allowlist is accepted. This prevents cross-origin WebSocket abuse.
+    origin: process.env['CORS_ORIGINS'] === '*' || !process.env['CORS_ORIGINS']
+      ? true
+      : process.env['CORS_ORIGINS'].split(',').map((o) => o.trim()),
+    credentials: true,
+  },
+})
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayInit {
   @WebSocketServer() server!: Server;
 

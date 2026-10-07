@@ -1,11 +1,8 @@
 /**
  * Salon reviews dashboard — salon owner sees their reviews with rating summary.
  */
-import { useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,

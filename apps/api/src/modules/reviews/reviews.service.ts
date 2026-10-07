@@ -11,6 +11,7 @@ import {
   salonRoom,
   type AdminModerateReviewInput,
   type CreateReviewInput,
+  type RatingDistribution,
   type ReviewDto,
   type ReviewEventType,
   type ReviewStatus,
@@ -240,7 +241,7 @@ export class ReviewsService {
     return {
       average: agg._avg.rating ? Math.round(agg._avg.rating * 10) / 10 : 0,
       count: agg._count._all,
-      distribution: distribution as any,
+      distribution: distribution as unknown as RatingDistribution,
     };
   }
 
@@ -248,11 +249,17 @@ export class ReviewsService {
 
   /** List all reviews for the authenticated salon owner/staff. */
   async listForSalonOwner(
-    salonId: string,
+    userId: string,
     cursor?: string,
     limit = 20,
     status?: ReviewStatus,
   ): Promise<{ items: ReviewDto[]; nextCursor: string | null }> {
+    const membership = await this.prisma.salonStaff.findFirst({
+      where: { userId, active: true },
+      orderBy: { createdAt: 'asc' },
+      select: { salonId: true },
+    });
+    const salonId = membership?.salonId ?? '';
     const rows = await this.prisma.review.findMany({
       where: {
         salonId,

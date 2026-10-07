@@ -1,6 +1,6 @@
 import { FlatList, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme, Card, EmptyState, LoadingState, Status } from '@soliton/ui';
 import type { AppointmentStatus, AppointmentSummaryDto, BookingStatus, QueueEntryDto } from '@soliton/api-contract';
@@ -69,7 +69,7 @@ function AppointmentCard({ appt }: { appt: AppointmentSummaryDto }) {
       </View>
       {isActive && (
         <Pressable
-          onPress={() => router.push(`/appointment/${appt.id}` as any)}
+          onPress={() => router.push(`/appointment/${appt.id}` as Href)}
           accessibilityRole="button"
           style={{
             marginTop: theme.spacing.s3,

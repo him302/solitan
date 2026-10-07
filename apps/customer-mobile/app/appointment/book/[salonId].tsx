@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useTheme } from '@soliton/ui';
 import type { AvailabilitySlot } from '@soliton/api-contract';
 import { useQuery } from '@tanstack/react-query';
@@ -83,9 +83,9 @@ export default function BookAppointmentScreen() {
         scheduledAt: selectedSlot.startsAt,
         idempotencyKey: `${salonId}-${selectedService.id}-${selectedSlot.startsAt}-${Date.now()}`,
       });
-      router.replace(`/appointment/${appt.id}` as any);
-    } catch (err: any) {
-      Alert.alert('Booking failed', err?.message ?? 'Please try another slot.');
+      router.replace(`/appointment/${appt.id}` as Href);
+    } catch (err: unknown) {
+      Alert.alert('Booking failed', err instanceof Error ? err.message : 'Please try another slot.');
     }
   }
 

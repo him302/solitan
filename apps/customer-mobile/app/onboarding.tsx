@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
 import {
-  Animated,
   Dimensions,
   FlatList,
   Pressable,

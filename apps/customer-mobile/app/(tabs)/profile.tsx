@@ -1,6 +1,5 @@
 import { Pressable, ScrollView, Text, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 
 const MAROON = '#A50000';
 
@@ -25,7 +24,6 @@ function MenuItem({ icon, label, value, danger }: {
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

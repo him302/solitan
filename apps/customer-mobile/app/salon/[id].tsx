@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { MOCK_SALONS, formatPrice, formatDistance, type MockSalon } from '../../src/data/mockSalons';
 import { useSalonReviews, useSalonRating } from '../../src/hooks/useReviews';
 
@@ -75,7 +75,7 @@ function QueueSection({ salon }: { salon: MockSalon }) {
 
       <Pressable
         style={[styles.joinBtn, { backgroundColor: '#FFF', borderWidth: 2, borderColor: MAROON, marginTop: 8 }]}
-        onPress={() => router.push(`/appointment/book/${salon.id}` as any)}
+        onPress={() => router.push(`/appointment/book/${salon.id}` as Href)}
         accessibilityRole="button"
       >
         <Text style={[styles.joinBtnText, { color: MAROON }]}>Book a Time</Text>

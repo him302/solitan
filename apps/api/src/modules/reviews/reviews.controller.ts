@@ -114,7 +114,7 @@ export class SalonOwnerReviewsController {
     @Query(new ZodQueryPipe(listSalonReviewsSchema)) query: ListSalonReviewsQuery,
   ) {
     return this.reviews.listForSalonOwner(
-      (user as any).salonId ?? '',
+      user.id,
       query.cursor,
       query.limit,
       query.status,

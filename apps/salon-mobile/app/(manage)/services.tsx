@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { useTheme, Card, Button, Divider, LoadingState, ErrorState, EmptyState } from '@soliton/ui';
+import { useTheme, Card, Button, LoadingState, ErrorState, EmptyState } from '@soliton/ui';
 import type { ServiceDto } from '@soliton/api-contract';
 import { useMySalon } from '../../src/hooks/useMySalon';
 import {

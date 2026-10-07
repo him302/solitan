@@ -427,7 +427,7 @@ export class AppointmentsService {
       };
     }
     if (status && status !== 'all') {
-      where.status = status as any;
+      where.status = status as AppointmentStatus;
     }
 
     const appts = await this.prisma.appointment.findMany({

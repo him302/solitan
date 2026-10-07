@@ -49,7 +49,7 @@ export default function SalonAnalyticsScreen() {
   });
   const salonId = mine?.id ?? null;
 
-  const { data: overview, isLoading: loadingOverview } = useSalonOverview(salonId, 'today');
+  const { data: overview } = useSalonOverview(salonId, 'today');
   const { data: queueStats, isLoading: loadingQueue } = useSalonQueueAnalytics(salonId, preset);
   const { data: apptStats, isLoading: loadingAppt } = useSalonAppointmentAnalytics(salonId, preset);
   const { data: services, isLoading: loadingSvc } = useSalonServiceAnalytics(salonId, preset);
@@ -199,7 +199,7 @@ export default function SalonAnalyticsScreen() {
                 </Text>
                 <View style={s.peakBarWrap}>
                   <View style={[s.peakBar, {
-                    width: `${Math.round((item.count / (peakHours.items[0]?.count ?? 1)) * 100)}%` as any,
+                    width: `${Math.round((item.count / (peakHours.items[0]?.count ?? 1)) * 100)}%` as unknown as number,
                   }]} />
                 </View>
                 <Text style={s.peakCount}>{item.count}</Text>

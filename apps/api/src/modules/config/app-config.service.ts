@@ -80,6 +80,11 @@ export class AppConfigService {
     return this.get('ANALYTICS_PROVIDER');
   }
 
+  /** When true: operational warnings are visible, mock providers are explicit. */
+  get pilotMode(): boolean {
+    return this.get('PILOT_MODE');
+  }
+
   get mapTileUrlTemplate(): string | undefined {
     return this.get('MAP_TILE_URL_TEMPLATE');
   }

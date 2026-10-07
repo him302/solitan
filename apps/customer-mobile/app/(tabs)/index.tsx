@@ -16,7 +16,6 @@ import {
   SERVICE_CATEGORIES,
   filterSalonsByCategory,
   getWaitLabel,
-  formatPrice,
   formatDistance,
   type MockSalon,
 } from '../../src/data/mockSalons';
@@ -145,7 +144,7 @@ export default function DiscoverScreen() {
   const toggleSave = (id: string) => {
     setSavedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
       return next;
     });
   };

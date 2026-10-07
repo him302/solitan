@@ -2,10 +2,9 @@
  * Appointment detail: smart arrival countdown, I'm On My Way, Check In CTAs.
  * Live-refreshes every 15s via refetchInterval.
  */
-import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useTheme, Card, LoadingState, Status } from '@soliton/ui';
 import type { AppointmentDto, AppointmentStatus } from '@soliton/api-contract';
 import { useQuery } from '@tanstack/react-query';
@@ -52,7 +51,6 @@ function ArrivalBanner({ appt }: { appt: AppointmentDto }) {
   const theme = useTheme();
   const now = Date.now();
   const arrival = new Date(appt.recommendedArrivalAt).getTime();
-  const scheduled = new Date(appt.scheduledAt).getTime();
 
   if (appt.status !== 'scheduled' && appt.status !== 'confirmed') return null;
   if (arrival < now) return null;
@@ -110,16 +108,16 @@ export default function AppointmentDetailScreen() {
 
   async function handleOnWay() {
     try { await onWayMutation.mutateAsync(appt!.id); }
-    catch (e: any) { Alert.alert('Error', e?.message ?? 'Could not update status.'); }
+    catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Could not update status.'); }
   }
 
   async function handleCheckIn() {
     try {
       const updated = await checkInMutation.mutateAsync(appt!.id);
       if (updated.linkedEntryId) {
-        router.push(`/queue/${updated.linkedEntryId}` as any);
+        router.push(`/queue/${updated.linkedEntryId}` as Href);
       }
-    } catch (e: any) { Alert.alert('Error', e?.message ?? 'Could not check in.'); }
+    } catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Could not check in.'); }
   }
 
   function confirmCancel() {
@@ -127,7 +125,7 @@ export default function AppointmentDetailScreen() {
       { text: 'No' },
       { text: 'Cancel Appointment', style: 'destructive', onPress: async () => {
         try { await cancelMutation.mutateAsync(appt!.id); router.back(); }
-        catch (e: any) { Alert.alert('Error', e?.message ?? 'Could not cancel.'); }
+        catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Could not cancel.'); }
       }},
     ]);
   }
@@ -169,7 +167,7 @@ export default function AppointmentDetailScreen() {
         {appt.linkedEntryId && (
           <Pressable
             style={s.trackBtn}
-            onPress={() => router.push(`/queue/${appt.linkedEntryId}` as any)}
+            onPress={() => router.push(`/queue/${appt.linkedEntryId}` as Href)}
             accessibilityRole="button"
           >
             <Text style={s.trackBtnText}>Track Queue Position →</Text>
@@ -179,7 +177,7 @@ export default function AppointmentDetailScreen() {
         {appt.status === 'completed' && !existingReview && (
           <Pressable
             style={[s.trackBtn, { backgroundColor: theme.colors.accent + '12' }]}
-            onPress={() => router.push(`/review/${appt.id}` as any)}
+            onPress={() => router.push(`/review/${appt.id}` as Href)}
             accessibilityRole="button"
           >
             <Text style={[s.trackBtnText, { color: theme.colors.accent }]}>
@@ -199,7 +197,7 @@ export default function AppointmentDetailScreen() {
         <Pressable
           style={s.reportLink}
           onPress={() => router.push(
-            `/complaint/new?appointmentId=${appt.id}&salonId=${appt.salonId}` as any,
+            `/complaint/new?appointmentId=${appt.id}&salonId=${appt.salonId}` as Href,
           )}
           accessibilityRole="button"
         >
