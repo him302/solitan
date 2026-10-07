@@ -60,6 +60,31 @@ export default function DashboardPage() {
         </button>
       </div>
 
+      <div style={{ display: 'flex', gap: 12, marginBottom: 32 }}>
+        {[
+          { href: '/reviews', label: '⭐ Reviews', desc: 'Moderation queue' },
+          { href: '/complaints', label: '🚩 Complaints', desc: 'Customer reports' },
+          { href: '/payments', label: '💳 Payments', desc: 'Payment records' },
+        ].map((nav) => (
+          <a
+            key={nav.href}
+            href={nav.href}
+            style={{
+              display: 'block',
+              padding: '16px 20px',
+              borderRadius: 8,
+              border: '1px solid var(--color-line, #E9E3D6)',
+              textDecoration: 'none',
+              color: 'inherit',
+              flex: 1,
+            }}
+          >
+            <div style={{ fontWeight: 700, fontSize: 16 }}>{nav.label}</div>
+            <div style={{ color: 'var(--color-ink-soft)', fontSize: 13, marginTop: 4 }}>{nav.desc}</div>
+          </a>
+        ))}
+      </div>
+
       {loading && <p>Loading salons…</p>}
       {error && <p style={{ color: 'var(--color-danger, #B32430)' }}>{error}</p>}
 

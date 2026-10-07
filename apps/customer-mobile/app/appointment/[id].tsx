@@ -11,6 +11,7 @@ import type { AppointmentDto, AppointmentStatus } from '@soliton/api-contract';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../src/api';
 import { APPOINTMENTS_KEY, useCancelAppointment, useCheckIn, useOnWay } from '../../src/hooks/useAppointments';
+import { useReviewForAppointment } from '../../src/hooks/useReviews';
 import { formatPrice, formatDuration } from '../../src/utils/format';
 
 function statusKind(status: AppointmentStatus): 'success' | 'warning' | 'neutral' | 'info' | 'danger' {
@@ -97,6 +98,7 @@ export default function AppointmentDetailScreen() {
   const onWayMutation = useOnWay();
   const checkInMutation = useCheckIn();
   const cancelMutation = useCancelAppointment();
+  const { data: existingReview } = useReviewForAppointment(appt?.id ?? null);
 
   if (isLoading || !appt) return <LoadingState label="Loading appointment…" />;
 
@@ -173,6 +175,36 @@ export default function AppointmentDetailScreen() {
             <Text style={s.trackBtnText}>Track Queue Position →</Text>
           </Pressable>
         )}
+
+        {appt.status === 'completed' && !existingReview && (
+          <Pressable
+            style={[s.trackBtn, { backgroundColor: theme.colors.accent + '12' }]}
+            onPress={() => router.push(`/review/${appt.id}` as any)}
+            accessibilityRole="button"
+          >
+            <Text style={[s.trackBtnText, { color: theme.colors.accent }]}>
+              ★ Write a Review
+            </Text>
+          </Pressable>
+        )}
+
+        {appt.status === 'completed' && existingReview && (
+          <View style={[s.trackBtn, { backgroundColor: theme.colors.surface }]}>
+            <Text style={{ color: theme.colors.inkSoft, fontSize: theme.type.caption.size, textAlign: 'center' }}>
+              {'★'.repeat(existingReview.rating) + '☆'.repeat(5 - existingReview.rating)} · Your review
+            </Text>
+          </View>
+        )}
+
+        <Pressable
+          style={s.reportLink}
+          onPress={() => router.push(
+            `/complaint/new?appointmentId=${appt.id}&salonId=${appt.salonId}` as any,
+          )}
+          accessibilityRole="button"
+        >
+          <Text style={s.reportLinkText}>Help / Report a problem</Text>
+        </Pressable>
       </ScrollView>
 
       {isActive && (
@@ -248,9 +280,11 @@ function ss(theme: ReturnType<typeof useTheme>) {
       borderRadius: theme.radius.button,
       paddingVertical: theme.spacing.s3,
       alignItems: 'center',
-      marginBottom: theme.spacing.s4,
+      marginBottom: theme.spacing.s3,
     },
     trackBtnText: { color: theme.colors.accent, fontWeight: '600', fontSize: theme.type.label.size },
+    reportLink: { paddingVertical: theme.spacing.s3, alignItems: 'center', marginTop: theme.spacing.s2 },
+    reportLinkText: { color: theme.colors.inkSoft, fontSize: theme.type.caption.size },
     actionBar: {
       padding: theme.spacing.s4,
       borderTopWidth: 1,

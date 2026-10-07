@@ -82,6 +82,22 @@ enum ComplaintStatus {
   dismissed
 }
 
+enum ReviewStatus {
+  published
+  hidden
+  under_review
+  removed
+}
+
+enum ComplaintCategory {
+  service
+  wait_time
+  booking
+  staff_behaviour
+  payment
+  other
+}
+
 // ---------------- core ----------------
 model User {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -114,11 +130,13 @@ model Salon {
   id           String                                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ownerId      String                                 @db.Uuid
   owner        User                                   @relation("SalonOwner", fields: [ownerId], references: [id])
-  name         String
-  status       SalonStatus                            @default(pending)
-  address      String?
-  city         String?
-  queueStatus  QueueStatus                            @default(closed)
+  name          String
+  status        SalonStatus                            @default(pending)
+  address       String?
+  city          String?
+  queueStatus   QueueStatus                            @default(closed)
+  averageRating Float?
+  reviewCount   Int                                    @default(0)
   bufferConfig Json?
   photoUrl     String?
   createdAt    DateTime                               @default(now())
@@ -133,6 +151,7 @@ model Salon {
   reviews      Review[]
   appointments Appointment[]
   complaints   Complaint[]
+  payments     Payment[]
   audits       QueueAudit[]
 
   @@index([ownerId])
@@ -290,6 +309,10 @@ model Appointment {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
+  review     Review?     @relation("AppointmentReview")
+  complaints Complaint[] @relation("AppointmentComplaints")
+  payments   Payment[]   @relation("AppointmentPayments")
+
   @@index([salonId, scheduledAt])
   @@index([customerId, scheduledAt])
   @@index([status])
@@ -298,19 +321,28 @@ model Appointment {
 }
 
 model Review {
-  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  salonId    String     @db.Uuid
-  salon      Salon      @relation(fields: [salonId], references: [id])
-  customerId String     @db.Uuid
-  customer   User       @relation(fields: [customerId], references: [id])
-  entryId    String     @unique @db.Uuid
-  entry      QueueEntry @relation(fields: [entryId], references: [id])
-  rating     Int
-  comment    String?
-  tags       Json?
-  createdAt  DateTime   @default(now())
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  salonId       String       @db.Uuid
+  salon         Salon        @relation(fields: [salonId], references: [id])
+  customerId    String       @db.Uuid
+  customer      User         @relation(fields: [customerId], references: [id])
+  entryId       String?      @unique @db.Uuid
+  entry         QueueEntry?  @relation(fields: [entryId], references: [id])
+  appointmentId String?      @unique @db.Uuid
+  appointment   Appointment? @relation("AppointmentReview", fields: [appointmentId], references: [id])
+  rating        Int
+  comment       String?
+  tags          Json?
+  status        ReviewStatus @default(published)
+  adminNote     String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  complaints Complaint[] @relation("ReviewComplaints")
 
   @@index([salonId])
+  @@index([customerId])
+  @@index([status])
   @@map("reviews")
 }
 
@@ -356,34 +388,52 @@ model DeviceToken {
 }
 
 model Complaint {
-  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  reporterId String          @db.Uuid
-  reporter   User            @relation("ComplaintReporter", fields: [reporterId], references: [id])
-  salonId    String?         @db.Uuid
-  salon      Salon?          @relation(fields: [salonId], references: [id])
-  entryId    String?         @db.Uuid
-  entry      QueueEntry?     @relation(fields: [entryId], references: [id])
-  status     ComplaintStatus @default(open)
-  body       String
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporterId    String            @db.Uuid
+  reporter      User              @relation("ComplaintReporter", fields: [reporterId], references: [id])
+  salonId       String?           @db.Uuid
+  salon         Salon?            @relation(fields: [salonId], references: [id])
+  entryId       String?           @db.Uuid
+  entry         QueueEntry?       @relation(fields: [entryId], references: [id])
+  appointmentId String?           @db.Uuid
+  appointment   Appointment?      @relation("AppointmentComplaints", fields: [appointmentId], references: [id])
+  reviewId      String?           @db.Uuid
+  review        Review?           @relation("ReviewComplaints", fields: [reviewId], references: [id])
+  category      ComplaintCategory @default(other)
+  status        ComplaintStatus   @default(open)
+  body          String
+  adminNote     String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@index([entryId])
+  @@index([status])
+  @@index([reporterId])
   @@map("complaints")
 }
 
 model Payment {
-  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  entryId     String?       @db.Uuid
-  entry       QueueEntry?   @relation(fields: [entryId], references: [id])
-  customerId  String        @db.Uuid
-  customer    User          @relation(fields: [customerId], references: [id])
-  amountCents Int
-  status      PaymentStatus @default(none)
-  providerRef String?
-  createdAt   DateTime      @default(now())
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entryId       String?       @db.Uuid
+  entry         QueueEntry?   @relation(fields: [entryId], references: [id])
+  appointmentId String?       @db.Uuid
+  appointment   Appointment?  @relation("AppointmentPayments", fields: [appointmentId], references: [id])
+  customerId    String        @db.Uuid
+  customer      User          @relation(fields: [customerId], references: [id])
+  salonId       String?       @db.Uuid
+  salon         Salon?        @relation(fields: [salonId], references: [id])
+  amountCents   Int
+  currency      String        @default("INR")
+  status        PaymentStatus @default(none)
+  provider      String        @default("mock")
+  providerRef   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   @@index([entryId])
+  @@index([customerId])
+  @@index([salonId])
+  @@index([status])
   @@map("payments")
 }
 

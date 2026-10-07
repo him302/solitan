@@ -421,6 +421,106 @@ async function main(): Promise<void> {
     });
   }
 
+  // === Phase 5 IDs ===
+  const P5_IDS = {
+    appt1: '00000000-0000-4000-8500-000000000001',
+    appt2: '00000000-0000-4000-8500-000000000002',
+    review1: '00000000-0000-4000-8500-000000000010',
+    review2: '00000000-0000-4000-8500-000000000011',
+    complaint1: '00000000-0000-4000-8500-000000000020',
+    payment1: '00000000-0000-4000-8500-000000000030',
+  } as const;
+
+  // Two completed appointments for the test customer at salon1
+  const pastDate1 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 days ago
+  const pastDate2 = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000); // 3 days ago
+
+  for (const [apptId, svcId, scheduledAt] of [
+    [P5_IDS.appt1, ID.salon1SvcHaircut, pastDate1],
+    [P5_IDS.appt2, ID.salon1SvcBeard, pastDate2],
+  ] as const) {
+    await prisma.appointment.upsert({
+      where: { id: apptId },
+      update: {},
+      create: {
+        id: apptId,
+        salonId: ID.salon1,
+        customerId: ID.customer,
+        serviceId: svcId,
+        scheduledAt: scheduledAt as Date,
+        durationMinutes: 30,
+        status: 'completed',
+      },
+    });
+  }
+
+  // Two reviews for those appointments (published + under_review)
+  await prisma.review.upsert({
+    where: { id: P5_IDS.review1 },
+    update: {},
+    create: {
+      id: P5_IDS.review1,
+      salonId: ID.salon1,
+      customerId: ID.customer,
+      appointmentId: P5_IDS.appt1,
+      rating: 5,
+      comment: 'Great haircut! Very professional staff.',
+      status: 'published',
+    },
+  });
+
+  await prisma.review.upsert({
+    where: { id: P5_IDS.review2 },
+    update: {},
+    create: {
+      id: P5_IDS.review2,
+      salonId: ID.salon1,
+      customerId: ID.customer,
+      appointmentId: P5_IDS.appt2,
+      rating: 2,
+      comment: 'Waiting time was too long.',
+      status: 'under_review',
+    },
+  });
+
+  // Update salon1 denormalized rating
+  await prisma.salon.update({
+    where: { id: ID.salon1 },
+    data: { averageRating: 3.5, reviewCount: 2 },
+  });
+
+  // One open complaint about salon1 from the customer
+  await prisma.complaint.upsert({
+    where: { id: P5_IDS.complaint1 },
+    update: {},
+    create: {
+      id: P5_IDS.complaint1,
+      reporterId: ID.customer,
+      salonId: ID.salon1,
+      appointmentId: P5_IDS.appt2,
+      category: 'wait_time',
+      body: 'I had to wait over 45 minutes past my appointment time. No updates were given.',
+      status: 'open',
+    },
+  });
+
+  // One mock payment record (paid) for the first appointment
+  await prisma.payment.upsert({
+    where: { id: P5_IDS.payment1 },
+    update: {},
+    create: {
+      id: P5_IDS.payment1,
+      customerId: ID.customer,
+      salonId: ID.salon1,
+      appointmentId: P5_IDS.appt1,
+      amountCents: 20000,
+      currency: 'INR',
+      status: 'paid',
+      provider: 'mock',
+      providerRef: 'mock_ref_001',
+    },
+  });
+
   // === Operating hours ===
   // Delete existing hours for all seeded salons, then create fresh.
   const salonIds = salons.map((s) => s.id);
@@ -470,9 +570,10 @@ async function main(): Promise<void> {
 
   console.log('Seed complete:');
   console.log('  Users: admin, owner, staff, newowner (no salon), owner2–5, customer');
-  console.log('  Salons: 5 active salons in Raipur with PostGIS coordinates');
+  console.log('  Salons: 5 active salons in Raipur');
   console.log('  Services: 16 services (1 inactive) across 5 salons');
   console.log('  Hours: 4 salons with hours, 1 without (unconfigured)');
+  console.log('  Phase 5: 2 appointments, 2 reviews, 1 complaint, 1 payment');
   console.log('Dev password for all seeded accounts: ' + DEV_PASSWORD);
 }
 

@@ -11,10 +11,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MOCK_SALONS, formatPrice, formatDistance, type MockSalon } from '../../src/data/mockSalons';
+import { useSalonReviews, useSalonRating } from '../../src/hooks/useReviews';
 
 const MAROON = '#A50000';
 
-type Tab = 'services' | 'about';
+type Tab = 'services' | 'about' | 'reviews';
 
 function QueueSection({ salon }: { salon: MockSalon }) {
   const router = useRouter();
@@ -91,6 +92,8 @@ export default function SalonDetailScreen() {
   const [saved, setSaved] = useState(false);
 
   const salon = MOCK_SALONS.find((s) => s.id === id) ?? MOCK_SALONS[0];
+  const { data: salonRating } = useSalonRating(id ?? null);
+  const { data: reviewsData } = useSalonReviews(id ?? null);
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
@@ -128,9 +131,13 @@ export default function SalonDetailScreen() {
           </View>
 
           <View style={styles.metaRow}>
-            <Text style={styles.ratingText}>⭐ {salon.rating.average}</Text>
+            <Text style={styles.ratingText}>
+              ⭐ {salonRating?.count ? salonRating.average.toFixed(1) : salon.rating.average}
+            </Text>
             <Text style={styles.metaDot}>·</Text>
-            <Text style={styles.metaText}>{salon.rating.count} reviews</Text>
+            <Text style={styles.metaText}>
+              {salonRating?.count ?? salon.rating.count} reviews
+            </Text>
             <Text style={styles.metaDot}>·</Text>
             <Text style={styles.metaText}>📍 {formatDistance(salon.distanceMeters)}</Text>
           </View>
@@ -143,7 +150,7 @@ export default function SalonDetailScreen() {
 
         {/* Tabs */}
         <View style={styles.tabsRow}>
-          {(['services', 'about'] as Tab[]).map((tab) => (
+          {(['services', 'reviews', 'about'] as Tab[]).map((tab) => (
             <Pressable
               key={tab}
               style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive]}
@@ -181,6 +188,63 @@ export default function SalonDetailScreen() {
                 </View>
               </View>
             ))}
+          </View>
+        )}
+
+        {/* Reviews */}
+        {activeTab === 'reviews' && (
+          <View style={{ padding: 16 }}>
+            {salonRating && salonRating.count > 0 ? (
+              <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 16 }}>
+                <Text style={{ fontSize: 28, fontWeight: '700', color: '#1E1E1C' }}>
+                  {salonRating.average.toFixed(1)} ★
+                </Text>
+                <Text style={{ color: '#605E57', marginBottom: 12 }}>
+                  based on {salonRating.count} reviews
+                </Text>
+                {([5, 4, 3, 2, 1] as const).map((star) => {
+                  const count = salonRating.distribution[star] ?? 0;
+                  const pct = salonRating.count > 0 ? (count / salonRating.count) * 100 : 0;
+                  return (
+                    <View key={star} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <Text style={{ width: 20, color: '#605E57' }}>{star}★</Text>
+                      <View style={{ flex: 1, height: 8, backgroundColor: '#E9E3D6', borderRadius: 4, overflow: 'hidden' }}>
+                        <View style={{ width: `${pct}%`, height: '100%', backgroundColor: '#F7C65B', borderRadius: 4 }} />
+                      </View>
+                      <Text style={{ width: 24, color: '#605E57', textAlign: 'right' }}>{count}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={{ padding: 24, alignItems: 'center' }}>
+                <Text style={{ color: '#605E57', fontSize: 16, textAlign: 'center' }}>New on Soliton</Text>
+                <Text style={{ color: '#605E57', textAlign: 'center', marginTop: 4 }}>No reviews yet.</Text>
+              </View>
+            )}
+
+            {reviewsData?.items.map((review) => (
+              <View key={review.id} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <Text style={{ color: '#F7C65B', fontSize: 16 }}>{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</Text>
+                  <Text style={{ color: '#605E57', fontSize: 12 }}>
+                    {new Date(review.createdAt).toLocaleDateString('en-IN')}
+                  </Text>
+                </View>
+                {review.comment ? (
+                  <Text style={{ color: '#1E1E1C' }}>"{review.comment}"</Text>
+                ) : null}
+                <Text style={{ color: '#605E57', fontSize: 12, marginTop: 4 }}>
+                  — {review.customerName ?? 'Customer'}
+                </Text>
+              </View>
+            ))}
+
+            {(!reviewsData?.items.length && salonRating?.count === 0) && (
+              <Text style={{ color: '#605E57', textAlign: 'center' }}>
+                Be the first to share your experience.
+              </Text>
+            )}
           </View>
         )}
 

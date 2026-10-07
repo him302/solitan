@@ -8,8 +8,12 @@ import type {
   AppointmentSummaryDto,
   AvailabilitySlot,
   AuthTokens,
+  ComplaintDto,
   CreateAppointmentInput,
   CreateBookingInput,
+  CreateComplaintInput,
+  CreateMockPaymentInput,
+  CreateReviewInput,
   CreateSalonInput,
   CreateServiceInput,
   CurrentUser,
@@ -20,15 +24,20 @@ import type {
   ListSalonAppointmentsInput,
   Location,
   MapMarkersResponse,
+  MockPaymentActionInput,
   MySalonDto,
   OperatingHoursDto,
+  PaymentDto,
   PutHoursInput,
   QueueEntryDto,
   QueueStateDto,
+  ReviewDto,
   SalonQueueSnapshot,
   SalonDetailDto,
+  SalonRatingSummary,
   ServiceDto,
   StaffActionInput,
+  UpdateReviewInput,
   UpdateSalonInput,
   UpdateServiceInput,
 } from '@soliton/api-contract';
@@ -169,6 +178,58 @@ export function createSolitonApi(config: HttpClientConfig) {
       /** Get available slots for a salon/service/date. */
       availability: (salonId: string, serviceId: string, date: string) =>
         http.get<AvailabilitySlot[]>(`/salons/${salonId}/availability`, { serviceId, date }),
+    },
+    reviews: {
+      /** Customer: submit a review for a completed appointment. */
+      create: (input: CreateReviewInput) => http.post<ReviewDto>('/reviews', input),
+      /** Customer: update own review within 24h window. */
+      update: (id: string, input: UpdateReviewInput) => http.patch<ReviewDto>(`/reviews/${id}`, input),
+      /** Get a single review. */
+      get: (id: string) => http.get<ReviewDto>(`/reviews/${id}`),
+      /** Customer: list own reviews. */
+      listMine: (cursor?: string, limit?: number) =>
+        http.get<{ items: ReviewDto[]; nextCursor: string | null }>('/me/reviews', { cursor, limit }),
+      /** Customer: check if appointment already has a review. */
+      forAppointment: (appointmentId: string) =>
+        http.get<ReviewDto | null>(`/me/reviews/appointment/${appointmentId}`),
+      /** Public: list published reviews for a salon. */
+      listForSalon: (salonId: string, cursor?: string, limit?: number) =>
+        http.get<{ items: ReviewDto[]; nextCursor: string | null }>(`/salons/${salonId}/reviews`, { cursor, limit }),
+      /** Public: get salon rating summary. */
+      ratingForSalon: (salonId: string) => http.get<SalonRatingSummary>(`/salons/${salonId}/rating`),
+      /** Salon owner: list all reviews for own salon. */
+      listForSalonOwner: (cursor?: string, limit?: number, status?: string) =>
+        http.get<{ items: ReviewDto[]; nextCursor: string | null }>('/salon/reviews', { cursor, limit, status }),
+    },
+    complaints: {
+      create: (input: CreateComplaintInput) => http.post<ComplaintDto>('/complaints', input),
+      listMine: (cursor?: string, limit?: number) =>
+        http.get<{ items: ComplaintDto[]; nextCursor: string | null }>('/me/complaints', { cursor, limit }),
+      getOne: (id: string) => http.get<ComplaintDto>(`/me/complaints/${id}`),
+    },
+    payments: {
+      /** DEVELOPMENT ONLY: create a pending mock payment. */
+      mockCreate: (input: CreateMockPaymentInput) => http.post<PaymentDto>('/payments/mock/create', input),
+      /** DEVELOPMENT ONLY: simulate success. */
+      mockSucceed: (input: MockPaymentActionInput) => http.post<PaymentDto>('/payments/mock/succeed', input),
+      /** DEVELOPMENT ONLY: simulate failure. */
+      mockFail: (input: MockPaymentActionInput) => http.post<PaymentDto>('/payments/mock/fail', input),
+      /** Refund a payment. */
+      refund: (input: MockPaymentActionInput) => http.post<PaymentDto>('/payments/mock/refund', input),
+      listMine: (cursor?: string, limit?: number) =>
+        http.get<{ items: PaymentDto[]; nextCursor: string | null }>('/me/payments', { cursor, limit }),
+    },
+    admin: {
+      listReviews: (cursor?: string, limit?: number, status?: string) =>
+        http.get<{ items: ReviewDto[]; nextCursor: string | null }>('/admin/reviews', { cursor, limit, status }),
+      moderateReview: (id: string, input: { status: string; adminNote?: string }) =>
+        http.patch<ReviewDto>(`/admin/reviews/${id}/moderation`, input),
+      listComplaints: (cursor?: string, limit?: number, status?: string) =>
+        http.get<{ items: ComplaintDto[]; nextCursor: string | null }>('/admin/complaints', { cursor, limit, status }),
+      updateComplaint: (id: string, input: { status: string; adminNote?: string }) =>
+        http.patch<ComplaintDto>(`/admin/complaints/${id}`, input),
+      listPayments: (cursor?: string, limit?: number, status?: string) =>
+        http.get<{ items: PaymentDto[]; nextCursor: string | null }>('/admin/payments', { cursor, limit, status }),
     },
   };
 }

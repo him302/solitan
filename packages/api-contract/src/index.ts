@@ -153,3 +153,8 @@ export * from './queue';
 
 // ---------------- Phase 4: appointments ----------------
 export * from './appointment';
+
+// ---------------- Phase 5: reviews, complaints, payments ----------------
+export * from './review';
+export * from './complaint';
+export * from './payment';

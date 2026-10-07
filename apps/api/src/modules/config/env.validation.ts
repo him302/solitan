@@ -35,6 +35,14 @@ export const envSchema = z.object({
   /** dev = logs the code outside production only; never sends an SMS. */
   OTP_PROVIDER: z.enum(['dev']).default('dev'),
   PAYMENT_PROVIDER: z.enum(['disabled']).default('disabled'),
+  PAYMENTS_ENABLED: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  MOCK_PAYMENTS_ENABLED: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
   MESSAGING_PROVIDER: z.enum(['disabled']).default('disabled'),
   STORAGE_PROVIDER: z.enum(['local']).default('local'),
   ANALYTICS_PROVIDER: z.enum(['local']).default('local'),

@@ -14,6 +14,10 @@ import { ProvidersModule } from './modules/providers/providers.module';
 import { QueueModule } from './modules/queue/queue.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
+import { ComplaintsModule } from './modules/complaints/complaints.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -32,6 +36,10 @@ import { AppointmentsModule } from './modules/appointments/appointments.module';
     QueueModule,
     NotificationsModule,
     AppointmentsModule,
+    ReviewsModule,
+    ComplaintsModule,
+    PaymentsModule,
+    AdminModule,
   ],
 })
 export class AppModule {}

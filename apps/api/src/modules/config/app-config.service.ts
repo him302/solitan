@@ -60,6 +60,14 @@ export class AppConfigService {
     return this.get('PAYMENT_PROVIDER');
   }
 
+  get paymentsEnabled(): boolean {
+    return this.get('PAYMENTS_ENABLED');
+  }
+
+  get mockPaymentsEnabled(): boolean {
+    return this.get('MOCK_PAYMENTS_ENABLED');
+  }
+
   get messagingProvider(): Env['MESSAGING_PROVIDER'] {
     return this.get('MESSAGING_PROVIDER');
   }
