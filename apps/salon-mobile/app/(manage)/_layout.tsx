@@ -59,6 +59,13 @@ export default function ManageLayout() {
           tabBarIcon: ({ color }) => <TabIcon label="📋" color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="appointments"
+        options={{
+          title: 'Bookings',
+          tabBarIcon: ({ color }) => <TabIcon label="📅" color={color} />,
+        }}
+      />
     </Tabs>
   );
 }

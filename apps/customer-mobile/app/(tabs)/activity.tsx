@@ -3,8 +3,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme, Card, EmptyState, LoadingState, Status } from '@soliton/ui';
-import type { BookingStatus, QueueEntryDto } from '@soliton/api-contract';
+import type { AppointmentStatus, AppointmentSummaryDto, BookingStatus, QueueEntryDto } from '@soliton/api-contract';
 import { useBookings } from '../../src/hooks/useBookings';
+import { useAppointments } from '../../src/hooks/useAppointments';
 import { formatPrice, formatDuration } from '../../src/utils/format';
 
 function statusKind(status: BookingStatus): 'success' | 'warning' | 'neutral' | 'info' | 'danger' {
@@ -23,6 +24,69 @@ function statusKind(status: BookingStatus): 'success' | 'warning' | 'neutral' | 
     default:
       return 'neutral';
   }
+}
+
+function apptStatusKind(status: AppointmentStatus): 'success' | 'warning' | 'neutral' | 'info' | 'danger' {
+  switch (status) {
+    case 'scheduled': return 'neutral';
+    case 'confirmed': return 'info';
+    case 'checked_in':
+    case 'in_service': return 'warning';
+    case 'completed': return 'success';
+    case 'cancelled': return 'neutral';
+    case 'no_show': return 'danger';
+    default: return 'neutral';
+  }
+}
+
+function AppointmentCard({ appt }: { appt: AppointmentSummaryDto }) {
+  const theme = useTheme();
+  const router = useRouter();
+  const isActive = appt.status === 'scheduled' || appt.status === 'confirmed';
+  const d = new Date(appt.scheduledAt);
+  const dateStr = d.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true });
+
+  return (
+    <Card style={{ marginBottom: theme.spacing.s3 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <View style={{ flex: 1, marginRight: theme.spacing.s3 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+            <Text style={{ fontSize: 10, color: theme.colors.accent, fontWeight: '700', marginRight: 6, textTransform: 'uppercase', letterSpacing: 0.6 }}>
+              Appointment
+            </Text>
+          </View>
+          <Text style={{ fontSize: theme.type.label.size, fontWeight: theme.type.label.weight, color: theme.colors.ink }} numberOfLines={1}>
+            {appt.salonName}
+          </Text>
+          <Text style={{ fontSize: theme.type.body.size, color: theme.colors.ink, marginTop: theme.spacing.s1 }}>
+            {appt.serviceName}
+          </Text>
+          <Text style={{ color: theme.colors.inkSoft, fontSize: theme.type.caption.size, marginTop: theme.spacing.s1 }}>
+            {dateStr} · {formatDuration(appt.durationMinutes)}
+          </Text>
+        </View>
+        <Status kind={apptStatusKind(appt.status)} label={appt.status.replace('_', ' ')} />
+      </View>
+      {isActive && (
+        <Pressable
+          onPress={() => router.push(`/appointment/${appt.id}` as any)}
+          accessibilityRole="button"
+          style={{
+            marginTop: theme.spacing.s3,
+            backgroundColor: theme.colors.accent,
+            borderRadius: theme.radius.button,
+            paddingVertical: theme.spacing.s2,
+            paddingHorizontal: theme.spacing.s4,
+            alignSelf: 'flex-start',
+          }}
+        >
+          <Text style={{ color: theme.colors.accentInk, fontWeight: '600', fontSize: theme.type.label.size }}>
+            View Details
+          </Text>
+        </Pressable>
+      )}
+    </Card>
+  );
 }
 
 function BookingCard({ booking }: { booking: QueueEntryDto }) {
@@ -104,21 +168,27 @@ function BookingCard({ booking }: { booking: QueueEntryDto }) {
   );
 }
 
-/** Activity screen: active, upcoming, and past bookings. */
+/** Activity screen: active appointments, queue bookings, and past history. */
 export default function ActivityScreen() {
   const { t } = useTranslation();
   const theme = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const { data: bookings = [], isLoading } = useBookings();
+  const { data: bookings = [], isLoading: loadingBookings } = useBookings();
+  const { data: appointments = [], isLoading: loadingAppts } = useAppointments();
+  const isLoading = loadingBookings || loadingAppts;
 
-  const active = bookings.filter((b) => b.status === 'pending' || b.status === 'waiting' || b.status === 'serving');
-  const past = bookings.filter((b) => b.status === 'completed' || b.status === 'cancelled' || b.status === 'no_show');
+  const activeBookings = bookings.filter((b) => b.status === 'pending' || b.status === 'waiting' || b.status === 'serving');
+  const pastBookings = bookings.filter((b) => b.status === 'completed' || b.status === 'cancelled' || b.status === 'no_show');
+  const upcomingAppts = appointments.filter((a) => a.status === 'scheduled' || a.status === 'confirmed' || a.status === 'checked_in' || a.status === 'in_service');
+  const pastAppts = appointments.filter((a) => a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show');
 
   if (isLoading) return <LoadingState label={t('common.loading')} />;
 
-  if (bookings.length === 0) {
+  const isEmpty = bookings.length === 0 && appointments.length === 0;
+
+  if (isEmpty) {
     return (
       <View style={{ flex: 1, backgroundColor: theme.colors.bg, paddingTop: insets.top }}>
         <View style={{ paddingHorizontal: theme.spacing.s4, paddingVertical: theme.spacing.s4 }}>
@@ -147,9 +217,15 @@ export default function ActivityScreen() {
     );
   }
 
-  const sections: Array<{ key: string; title: string; data: QueueEntryDto[] }> = [];
-  if (active.length > 0) sections.push({ key: 'active', title: t('activity.active'), data: active });
-  if (past.length > 0) sections.push({ key: 'past', title: t('activity.past'), data: past });
+  type Section =
+    | { key: string; title: string; kind: 'bookings'; data: QueueEntryDto[] }
+    | { key: string; title: string; kind: 'appointments'; data: AppointmentSummaryDto[] };
+
+  const sections: Section[] = [];
+  if (upcomingAppts.length > 0) sections.push({ key: 'appts', title: 'Appointments', kind: 'appointments', data: upcomingAppts });
+  if (activeBookings.length > 0) sections.push({ key: 'active', title: t('activity.active'), kind: 'bookings', data: activeBookings });
+  if (pastAppts.length > 0) sections.push({ key: 'past-appts', title: 'Past Appointments', kind: 'appointments', data: pastAppts });
+  if (pastBookings.length > 0) sections.push({ key: 'past', title: t('activity.past'), kind: 'bookings', data: pastBookings });
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg, paddingTop: insets.top }}>
@@ -178,9 +254,10 @@ export default function ActivityScreen() {
             >
               {section.title}
             </Text>
-            {section.data.map((booking) => (
-              <BookingCard key={booking.id} booking={booking} />
-            ))}
+            {section.kind === 'appointments'
+              ? section.data.map((appt) => <AppointmentCard key={appt.id} appt={appt} />)
+              : section.data.map((booking) => <BookingCard key={booking.id} booking={booking} />)
+            }
           </View>
         )}
       />

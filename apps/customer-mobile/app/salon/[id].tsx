@@ -71,6 +71,14 @@ function QueueSection({ salon }: { salon: MockSalon }) {
           <Text style={styles.joinBtnText}>Join Queue</Text>
         </Pressable>
       )}
+
+      <Pressable
+        style={[styles.joinBtn, { backgroundColor: '#FFF', borderWidth: 2, borderColor: MAROON, marginTop: 8 }]}
+        onPress={() => router.push(`/appointment/book/${salon.id}` as any)}
+        accessibilityRole="button"
+      >
+        <Text style={[styles.joinBtnText, { color: MAROON }]}>Book a Time</Text>
+      </Pressable>
     </View>
   );
 }
