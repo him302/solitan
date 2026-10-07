@@ -240,12 +240,6 @@ async function main(): Promise<void> {
       create: { id: salon.queueId, salonId: salon.id, status: 'closed' },
     });
 
-    // PostGIS geography (geom is an Unsupported column → set via raw SQL).
-    await prisma.$executeRaw`
-      UPDATE "salons"
-      SET geom = ST_SetSRID(ST_MakePoint(${salon.coords.lon}, ${salon.coords.lat}), 4326)::geography
-      WHERE id = ${salon.id}::uuid
-    `;
   }
 
   // Salon 1 staff member

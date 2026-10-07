@@ -9,6 +9,7 @@
 -- cast is safe.
 
 ALTER TABLE appointments ALTER COLUMN status TYPE text;
+ALTER TABLE appointments ALTER COLUMN status DROP DEFAULT;
 
 DROP TYPE "AppointmentStatus";
 

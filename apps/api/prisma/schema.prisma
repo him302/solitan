@@ -3,14 +3,12 @@
 // + reviews rating CHECK are manually managed in the migration (see prisma/README.md).
 
 datasource db {
-  provider   = "postgresql"
-  url        = env("DATABASE_URL")
-  extensions = [postgis]
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"]
+  provider = "prisma-client-js"
 }
 
 // ---------------- enums ----------------
@@ -118,7 +116,6 @@ model Salon {
   owner        User                                   @relation("SalonOwner", fields: [ownerId], references: [id])
   name         String
   status       SalonStatus                            @default(pending)
-  geom         Unsupported("geography(Point, 4326)")?
   address      String?
   city         String?
   queueStatus  QueueStatus                            @default(closed)

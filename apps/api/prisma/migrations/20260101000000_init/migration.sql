@@ -1,6 +1,3 @@
--- CreateExtension
-CREATE EXTENSION IF NOT EXISTS "postgis";
-
 -- CreateEnum
 CREATE TYPE "Role" AS ENUM ('customer', 'staff', 'owner', 'admin');
 
@@ -53,7 +50,6 @@ CREATE TABLE "salons" (
     "ownerId" UUID NOT NULL,
     "name" TEXT NOT NULL,
     "status" "SalonStatus" NOT NULL DEFAULT 'pending',
-    "geom" geography(Point, 4326),
     "address" TEXT,
     "city" TEXT,
     "queueStatus" "QueueStatus" NOT NULL DEFAULT 'closed',
@@ -463,9 +459,6 @@ ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_userId_fkey" FOREIGN
 -- Manually-managed objects (not expressible in schema.prisma).
 -- See prisma/README.md → "Manually-managed database objects".
 -- ============================================================
-
--- GIST index for geospatial discovery (ST_DWithin / ST_Distance).
-CREATE INDEX "salons_geom_gist_idx" ON "salons" USING GIST ("geom");
 
 -- Review rating domain check (1..5).
 ALTER TABLE "reviews" ADD CONSTRAINT "reviews_rating_check" CHECK ("rating" >= 1 AND "rating" <= 5);
