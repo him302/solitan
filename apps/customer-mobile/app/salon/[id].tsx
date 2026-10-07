@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
@@ -10,60 +11,83 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { MOCK_SALONS, formatPrice, formatDistance, type MockSalon } from '../../src/data/mockSalons';
+import type { LiveQueueInfo, SalonDetailDto } from '@soliton/api-contract';
+import { useSalonDetail } from '../../src/hooks/useSalonDetail';
 import { useSalonReviews, useSalonRating } from '../../src/hooks/useReviews';
+import { useLocation } from '../../src/hooks/useLocation';
+import {
+  openNavigation,
+  formatDistanceMeters,
+  estimateTravelRange,
+  etaRange,
+} from '../../src/services/location.service';
 
 const MAROON = '#A50000';
 
 type Tab = 'services' | 'about' | 'reviews';
 
-function QueueSection({ salon }: { salon: MockSalon }) {
+function formatPrice(cents: number): string {
+  return `₹${(cents / 100).toFixed(0)}`;
+}
+
+function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function QueueSection({ salon }: { salon: SalonDetailDto }) {
   const router = useRouter();
-  const isOpen = salon.openState === 'open' && salon.queueStatus === 'open';
-  const isPaused = salon.queueStatus === 'paused';
-  const isClosed = salon.openState === 'closed' || salon.queueStatus === 'closed';
+  const q: LiveQueueInfo = salon.liveQueue;
+  const isOpen = salon.openState === 'open';
+  const isQueueOpen = isOpen && q.available;
 
   return (
     <View style={styles.queueSection}>
       <View style={styles.queueHeader}>
         <Text style={styles.queueTitle}>🎫 Live Queue</Text>
         <View style={[styles.queueStatusBadge, {
-          backgroundColor: isOpen ? '#E8F5E9' : isPaused ? '#FFF3CD' : '#F5F5F5',
+          backgroundColor: isQueueOpen ? '#E8F5E9' : '#F5F5F5',
         }]}>
           <Text style={[styles.queueStatusText, {
-            color: isOpen ? '#1B7A38' : isPaused ? '#9A5B00' : '#8A8780',
+            color: isQueueOpen ? '#1B7A38' : '#8A8780',
           }]}>
-            {isOpen ? 'Open' : isPaused ? 'Paused' : 'Closed'}
+            {isQueueOpen ? 'Open' : isOpen ? 'No queue data' : 'Closed'}
           </Text>
         </View>
       </View>
 
-      {isOpen && salon.currentToken !== null ? (
+      {isQueueOpen && q.available ? (
         <View style={styles.queueStats}>
           <View style={styles.queueStat}>
-            <Text style={styles.queueStatNum}>#{salon.currentToken}</Text>
+            <Text style={styles.queueStatNum}>
+              {q.currentToken !== null ? `#${q.currentToken}` : '—'}
+            </Text>
             <Text style={styles.queueStatLabel}>Now serving</Text>
           </View>
           <View style={styles.queueDivider} />
           <View style={styles.queueStat}>
-            <Text style={styles.queueStatNum}>{salon.totalWaiting}</Text>
+            <Text style={styles.queueStatNum}>{q.totalWaiting}</Text>
             <Text style={styles.queueStatLabel}>Waiting</Text>
           </View>
           <View style={styles.queueDivider} />
           <View style={styles.queueStat}>
             <Text style={styles.queueStatNum}>
-              {salon.etaMinutes !== null ? `~${salon.etaMinutes}m` : '—'}
+              {q.etaMinutes !== null && q.etaMinutes > 0 ? etaRange(q.etaMinutes) : 'Now'}
             </Text>
             <Text style={styles.queueStatLabel}>Est. wait</Text>
           </View>
         </View>
       ) : (
         <Text style={styles.queueUnavail}>
-          {isClosed ? 'Queue is closed. Opens tomorrow at 10:00 AM.' : 'Queue temporarily paused.'}
+          {!isOpen
+            ? 'Queue is closed.'
+            : 'Live queue data unavailable right now.'}
         </Text>
       )}
 
-      {isOpen && (
+      {isQueueOpen && (
         <Pressable
           style={styles.joinBtn}
           onPress={() => router.push('/booking/confirm')}
@@ -91,9 +115,38 @@ export default function SalonDetailScreen() {
   const [activeTab, setActiveTab] = useState<Tab>('services');
   const [saved, setSaved] = useState(false);
 
-  const salon = MOCK_SALONS.find((s) => s.id === id) ?? MOCK_SALONS[0];
+  const { location } = useLocation();
+  const { data: salon, isLoading, isError } = useSalonDetail(
+    id ?? '',
+    location ?? undefined,
+  );
   const { data: salonRating } = useSalonRating(id ?? null);
   const { data: reviewsData } = useSalonReviews(id ?? null);
+
+  if (isLoading || !salon) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color={MAROON} />
+      </View>
+    );
+  }
+
+  if (isError) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32 }}>
+        <Text style={{ fontSize: 18, fontWeight: '700', color: '#1E1E1C' }}>Couldn't load salon</Text>
+        <Text style={{ color: '#605E57', textAlign: 'center' }}>Check your connection and try again.</Text>
+        <Pressable onPress={() => router.back()} style={styles.joinBtn}>
+          <Text style={styles.joinBtnText}>Go back</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  const distLabel = formatDistanceMeters(salon.distanceMeters);
+  const travelLabel = salon.distanceMeters != null && salon.distanceMeters > 0
+    ? estimateTravelRange(salon.distanceMeters)
+    : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
@@ -103,13 +156,18 @@ export default function SalonDetailScreen() {
       >
         {/* Hero image */}
         <View style={styles.heroContainer}>
-          <Image source={{ uri: salon.photoUrl }} style={styles.heroImage} resizeMode="cover" />
-          {/* Overlay controls */}
+          {salon.photoUrl ? (
+            <Image source={{ uri: salon.photoUrl }} style={styles.heroImage} resizeMode="cover" />
+          ) : (
+            <View style={[styles.heroImage, { backgroundColor: '#F0EDE8', alignItems: 'center', justifyContent: 'center' }]}>
+              <Text style={{ fontSize: 60 }}>✂️</Text>
+            </View>
+          )}
           <View style={[styles.heroControls, { top: insets.top + 12 }]}>
-            <Pressable style={styles.heroBtn} onPress={() => router.back()}>
+            <Pressable style={styles.heroBtn} onPress={() => router.back()} accessibilityRole="button">
               <Text style={{ fontSize: 18, color: '#1E1E1C' }}>←</Text>
             </Pressable>
-            <Pressable style={styles.heroBtn} onPress={() => setSaved((v) => !v)}>
+            <Pressable style={styles.heroBtn} onPress={() => setSaved((v) => !v)} accessibilityRole="button">
               <Text style={{ fontSize: 20 }}>{saved ? '❤️' : '🤍'}</Text>
             </Pressable>
           </View>
@@ -131,18 +189,41 @@ export default function SalonDetailScreen() {
           </View>
 
           <View style={styles.metaRow}>
-            <Text style={styles.ratingText}>
-              ⭐ {salonRating?.count ? salonRating.average.toFixed(1) : salon.rating.average}
-            </Text>
-            <Text style={styles.metaDot}>·</Text>
-            <Text style={styles.metaText}>
-              {salonRating?.count ?? salon.rating.count} reviews
-            </Text>
-            <Text style={styles.metaDot}>·</Text>
-            <Text style={styles.metaText}>📍 {formatDistance(salon.distanceMeters)}</Text>
+            {(salonRating?.count ?? salon.rating?.count ?? 0) > 0 && (
+              <>
+                <Text style={styles.ratingText}>
+                  ⭐ {(salonRating?.average ?? salon.rating?.average ?? 0).toFixed(1)}
+                </Text>
+                <Text style={styles.metaDot}>·</Text>
+                <Text style={styles.metaText}>
+                  {(salonRating?.count ?? salon.rating?.count ?? 0)} reviews
+                </Text>
+                <Text style={styles.metaDot}>·</Text>
+              </>
+            )}
+            {distLabel ? (
+              <Text style={styles.metaText}>📍 {distLabel}</Text>
+            ) : null}
+            {travelLabel ? (
+              <>
+                <Text style={styles.metaDot}>·</Text>
+                <Text style={styles.metaText}>~{travelLabel} away</Text>
+              </>
+            ) : null}
           </View>
 
-          <Text style={styles.addressText}>{salon.address}, {salon.city}</Text>
+          {salon.address && (
+            <Text style={styles.addressText}>{salon.address}{salon.city ? `, ${salon.city}` : ''}</Text>
+          )}
+
+          {/* Get Directions button */}
+          <Pressable
+            style={styles.directionsBtn}
+            onPress={() => void openNavigation(salon.location, salon.name)}
+            accessibilityRole="button"
+          >
+            <Text style={styles.directionsBtnText}>🗺 Get Directions</Text>
+          </Pressable>
         </View>
 
         {/* Live Queue */}
@@ -166,21 +247,25 @@ export default function SalonDetailScreen() {
         {/* Services */}
         {activeTab === 'services' && (
           <View style={styles.servicesList}>
-            {salon.services.map((service) => (
+            {salon.services.filter((s) => s.active).map((service) => (
               <View key={service.id} style={styles.serviceRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.serviceName}>{service.name}</Text>
-                  <Text style={styles.serviceDuration}>{service.estimatedMinutes} min</Text>
+                  <Text style={styles.serviceDuration}>{formatDuration(service.estimatedMinutes)}</Text>
                 </View>
                 <View style={styles.serviceRight}>
                   <Text style={styles.servicePrice}>{formatPrice(service.priceCents)}</Text>
                   <Pressable
                     style={styles.bookBtn}
                     onPress={() => {
-                      Alert.alert('Book Service', `Book ${service.name} for ${formatPrice(service.priceCents)}?`, [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Book', onPress: () => router.push('/booking/confirm') },
-                      ]);
+                      Alert.alert(
+                        'Book Service',
+                        `Book ${service.name} for ${formatPrice(service.priceCents)}?`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Book', onPress: () => router.push(`/appointment/book/${salon.id}` as Href) },
+                        ],
+                      );
                     }}
                   >
                     <Text style={styles.bookBtnText}>Book</Text>
@@ -188,6 +273,9 @@ export default function SalonDetailScreen() {
                 </View>
               </View>
             ))}
+            {salon.services.filter((s) => s.active).length === 0 && (
+              <Text style={{ color: '#8A8780', textAlign: 'center', padding: 24 }}>No services listed yet.</Text>
+            )}
           </View>
         )}
 
@@ -218,8 +306,7 @@ export default function SalonDetailScreen() {
               </View>
             ) : (
               <View style={{ padding: 24, alignItems: 'center' }}>
-                <Text style={{ color: '#605E57', fontSize: 16, textAlign: 'center' }}>New on Soliton</Text>
-                <Text style={{ color: '#605E57', textAlign: 'center', marginTop: 4 }}>No reviews yet.</Text>
+                <Text style={{ color: '#605E57', fontSize: 16, textAlign: 'center' }}>No reviews yet.</Text>
               </View>
             )}
 
@@ -251,14 +338,24 @@ export default function SalonDetailScreen() {
         {/* About */}
         {activeTab === 'about' && (
           <View style={styles.aboutSection}>
-            <Text style={styles.aboutText}>{salon.about}</Text>
-            <View style={styles.tagsWrap}>
-              {salon.tags.map((tag) => (
-                <View key={tag} style={styles.tagChip}>
-                  <Text style={styles.tagText}>{tag}</Text>
-                </View>
-              ))}
-            </View>
+            {salon.address ? (
+              <Text style={styles.aboutText}>
+                📍 {salon.address}{salon.city ? `, ${salon.city}` : ''}
+              </Text>
+            ) : null}
+            {salon.hours.configured ? (
+              <View style={{ gap: 4 }}>
+                <Text style={{ fontWeight: '700', color: '#1E1E1C', fontSize: 15 }}>Hours</Text>
+                {salon.hours.days.filter((d) => d.isOpen).map((d) => {
+                  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                  return (
+                    <Text key={d.weekday} style={styles.aboutText}>
+                      {days[d.weekday]}: {d.openTime} – {d.closeTime}
+                    </Text>
+                  );
+                })}
+              </View>
+            ) : null}
           </View>
         )}
       </ScrollView>
@@ -328,6 +425,7 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 4,
   },
   ratingText: {
@@ -345,6 +443,19 @@ const styles = StyleSheet.create({
   addressText: {
     fontSize: 13,
     color: '#8A8780',
+  },
+  directionsBtn: {
+    marginTop: 4,
+    borderWidth: 1.5,
+    borderColor: MAROON,
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  directionsBtnText: {
+    color: MAROON,
+    fontWeight: '700',
+    fontSize: 14,
   },
   queueSection: {
     backgroundColor: '#FFFFFF',
@@ -389,7 +500,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   queueStatNum: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
     color: '#1E1E1C',
     fontVariant: ['tabular-nums'],
@@ -505,22 +616,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#605E57',
     lineHeight: 24,
-  },
-  tagsWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  tagChip: {
-    borderWidth: 1.5,
-    borderColor: MAROON,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-  },
-  tagText: {
-    color: MAROON,
-    fontSize: 13,
-    fontWeight: '600',
   },
 });

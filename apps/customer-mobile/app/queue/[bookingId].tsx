@@ -9,6 +9,7 @@ import { useBooking, useCancelBooking, BOOKINGS_KEY } from '../../src/hooks/useB
 import { useEntryRealtime } from '../../src/hooks/useEntryRealtime';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDuration, formatPrice } from '../../src/utils/format';
+import { etaRange as etaRangeLabel } from '../../src/services/location.service';
 
 function statusBg(
   status: QueueEntryDto['status'],
@@ -159,13 +160,13 @@ export default function QueueTrackScreen() {
           )}
         </Card>
 
-        {/* ETA block */}
+        {/* ETA block — show a range rather than a falsely-exact number */}
         {isActive && b.etaMinutes !== null && b.etaMinutes > 0 && (
           <Card>
             <Text style={{ color: theme.colors.inkSoft, fontSize: theme.type.caption.size, marginBottom: theme.spacing.s2 }}>
               {t('booking.estimatedWait')}
             </Text>
-            <EtaBlock minLabel={`${b.etaMinutes}`} />
+            <EtaBlock minLabel={etaRangeLabel(b.etaMinutes)} />
           </Card>
         )}
 
