@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Text } from 'react-native';
+import { Text, type ColorValue } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@soliton/ui';
 
@@ -63,6 +63,6 @@ export default function ManageLayout() {
   );
 }
 
-function TabIcon({ label, color }: { label: string; color: string }) {
+function TabIcon({ label, color }: { label: string; color: ColorValue }) {
   return <Text style={{ fontSize: 20, color }}>{label}</Text>;
 }

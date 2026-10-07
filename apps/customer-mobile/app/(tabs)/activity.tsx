@@ -9,6 +9,8 @@ import { formatPrice, formatDuration } from '../../src/utils/format';
 
 function statusKind(status: BookingStatus): 'success' | 'warning' | 'neutral' | 'info' | 'danger' {
   switch (status) {
+    case 'pending':
+      return 'neutral';
     case 'waiting':
       return 'info';
     case 'serving':
@@ -111,7 +113,7 @@ export default function ActivityScreen() {
 
   const { data: bookings = [], isLoading } = useBookings();
 
-  const active = bookings.filter((b) => b.status === 'waiting' || b.status === 'serving');
+  const active = bookings.filter((b) => b.status === 'pending' || b.status === 'waiting' || b.status === 'serving');
   const past = bookings.filter((b) => b.status === 'completed' || b.status === 'cancelled' || b.status === 'no_show');
 
   if (isLoading) return <LoadingState label={t('common.loading')} />;

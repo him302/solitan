@@ -5,7 +5,6 @@
  */
 import type {
   AuthTokens,
-  BookingDto,
   CreateBookingInput,
   CreateSalonInput,
   CreateServiceInput,
@@ -108,10 +107,10 @@ export function createSolitonApi(config: HttpClientConfig) {
       geocode: (address: string) => http.get<GeocodeResponse>('/maps/geocode', { address }),
     },
     bookings: {
-      create: (input: CreateBookingInput) => http.post<BookingDto>('/bookings', input),
-      list: () => http.get<BookingDto[]>('/me/bookings'),
-      get: (id: string) => http.get<BookingDto>(`/bookings/${id}`),
-      cancel: (id: string) => http.delete<BookingDto>(`/bookings/${id}`),
+      create: (input: CreateBookingInput) => http.post<QueueEntryDto>('/bookings', input),
+      list: () => http.get<QueueEntryDto[]>('/me/bookings'),
+      get: (id: string) => http.get<QueueEntryDto>(`/bookings/${id}`),
+      cancel: (id: string) => http.delete<QueueEntryDto>(`/bookings/${id}`),
     },
     queue: {
       status: (salonId: string) => http.get<QueueStateDto>(`/salons/${salonId}/queue`),

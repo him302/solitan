@@ -8,7 +8,7 @@ export const BOOKINGS_KEY = 'bookings';
 export function useBookings() {
   return useQuery<QueueEntryDto[]>({
     queryKey: [BOOKINGS_KEY],
-    queryFn: () => api.bookings.list() as Promise<QueueEntryDto[]>,
+    queryFn: () => api.bookings.list(),
     staleTime: 5_000,
     retry: 1,
   });
@@ -18,7 +18,7 @@ export function useBookings() {
 export function useBooking(id: string | null) {
   return useQuery<QueueEntryDto | null>({
     queryKey: [BOOKINGS_KEY, id],
-    queryFn: () => (id ? (api.bookings.get(id) as Promise<QueueEntryDto>) : null),
+    queryFn: () => (id ? api.bookings.get(id) : null),
     enabled: !!id,
     staleTime: 3_000,
     refetchInterval: 8_000,
