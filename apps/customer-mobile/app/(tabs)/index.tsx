@@ -1,302 +1,514 @@
-import { useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { useState, useMemo } from 'react';
+import {
+  FlatList,
+  Image,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+  StyleSheet,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useTranslation } from 'react-i18next';
-import { useTheme } from '@soliton/ui';
-import { EmptyState, ErrorState, LoadingState, SalonCard } from '@soliton/ui';
-import type { DiscoverySalonDto, DiscoverySort } from '@soliton/api-contract';
-import { useDiscovery, type DiscoveryFilters } from '../../src/hooks/useDiscovery';
-import { formatDistance, formatPrice } from '../../src/utils/format';
+import {
+  MOCK_SALONS,
+  SERVICE_CATEGORIES,
+  filterSalonsByCategory,
+  getWaitLabel,
+  formatPrice,
+  formatDistance,
+  type MockSalon,
+} from '../../src/data/mockSalons';
 
-const PAGE_SIZE = 20;
-
-const CATEGORY_KEYS = ['haircut', 'styling', 'beard', 'shave', 'facial', 'color', 'other'] as const;
+const MAROON = '#A50000';
+const BG = '#FAFAFA';
 
 function greeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'morning';
-  if (hour < 17) return 'afternoon';
-  return 'evening';
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
 }
 
-/** Customer discovery home screen. */
-export default function DiscoveryScreen() {
-  const { t } = useTranslation();
-  const theme = useTheme();
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
+function WaitBadge({ salon }: { salon: MockSalon }) {
+  const label = getWaitLabel(salon);
+  const isAvail = salon.openState === 'open' && salon.etaMinutes !== null && salon.etaMinutes <= 5;
+  const isClosed = salon.openState === 'closed';
+  const isPaused = salon.queueStatus === 'paused';
 
-  const [searchText, setSearchText] = useState('');
-  const [activeSort, setActiveSort] = useState<DiscoverySort>('name');
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [offset, setOffset] = useState(0);
+  const bg = isClosed ? '#F0F0F0'
+    : isPaused ? '#FFF3CD'
+    : isAvail ? '#E8F5E9'
+    : salon.etaMinutes !== null && salon.etaMinutes > 30 ? '#FFF0F0'
+    : '#FFF8E1';
 
-  const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [debounceTimer, setDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
-
-  const onSearchChange = useCallback(
-    (text: string) => {
-      setSearchText(text);
-      setOffset(0);
-      setActiveCategory(null);
-      if (debounceTimer) clearTimeout(debounceTimer);
-      const timer = setTimeout(() => setDebouncedQuery(text.trim()), 400);
-      setDebounceTimer(timer);
-    },
-    [debounceTimer],
-  );
-
-  const onCategoryPress = useCallback(
-    (key: string) => {
-      const next = activeCategory === key ? null : key;
-      setActiveCategory(next);
-      setOffset(0);
-      if (next) {
-        setSearchText('');
-        setDebouncedQuery(t(`categories.${next}`));
-      } else {
-        setDebouncedQuery('');
-      }
-    },
-    [activeCategory, t],
-  );
-
-  const filters: DiscoveryFilters = useMemo(
-    () => ({
-      q: debouncedQuery || undefined,
-      sort: activeSort,
-      limit: PAGE_SIZE,
-      offset,
-    }),
-    [debouncedQuery, activeSort, offset],
-  );
-
-  const { data, isLoading, isError, refetch } = useDiscovery(filters);
-
-  const renderSalon = useCallback(
-    ({ item }: { item: DiscoverySalonDto }) => {
-      const distance = formatDistance(item.distanceMeters);
-      const previewLabel =
-        item.servicePreview.length > 0
-          ? item.servicePreview
-              .slice(0, 2)
-              .map((s) => `${s.name} ${formatPrice(s.priceCents)}`)
-              .join(' · ')
-          : undefined;
-
-      return (
-        <View style={{ paddingHorizontal: theme.spacing.s4, marginBottom: theme.spacing.s3 }}>
-          <SalonCard
-            name={item.name}
-            distanceLabel={distance ?? undefined}
-            waitingLabel={previewLabel}
-            open={item.openState === 'open'}
-            onPress={() => router.push(`/salon/${item.id}`)}
-          />
-        </View>
-      );
-    },
-    [theme, router],
-  );
-
-  const ListHeader = useMemo(
-    () => (
-      <View style={{ paddingBottom: theme.spacing.s3 }}>
-        {/* Greeting */}
-        <View style={{ paddingHorizontal: theme.spacing.s4, paddingBottom: theme.spacing.s3 }}>
-          <Text style={{ color: theme.colors.inkSoft, fontSize: theme.type.body.size }}>
-            {t(`greeting.${greeting()}`)}
-          </Text>
-          <Text
-            style={{
-              fontSize: theme.type.section.size,
-              fontWeight: theme.type.section.weight,
-              color: theme.colors.ink,
-              marginTop: 2,
-            }}
-          >
-            {t('greeting.findNearby')}
-          </Text>
-        </View>
-
-        {/* Search bar */}
-        <View style={{ paddingHorizontal: theme.spacing.s4 }}>
-          <TextInput
-            placeholder={t('discovery.searchPlaceholder')}
-            placeholderTextColor={theme.colors.inkSoft}
-            value={searchText}
-            onChangeText={onSearchChange}
-            style={{
-              backgroundColor: theme.colors.surface,
-              borderRadius: theme.radius.input,
-              paddingHorizontal: theme.spacing.s4,
-              paddingVertical: theme.spacing.s3,
-              fontSize: theme.type.body.size,
-              color: theme.colors.ink,
-              borderWidth: theme.borderWidth.hairline,
-              borderColor: theme.colors.line,
-            }}
-            accessibilityLabel={t('common.search')}
-            returnKeyType="search"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        </View>
-
-        {/* Service category chips */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{
-            paddingHorizontal: theme.spacing.s4,
-            paddingTop: theme.spacing.s3,
-            gap: theme.spacing.s2,
-          }}
-        >
-          {CATEGORY_KEYS.map((key) => {
-            const active = activeCategory === key;
-            return (
-              <Pressable
-                key={key}
-                onPress={() => onCategoryPress(key)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                style={{
-                  paddingHorizontal: theme.spacing.s4,
-                  paddingVertical: theme.spacing.s2,
-                  borderRadius: theme.radius.pill,
-                  backgroundColor: active ? theme.colors.accent : theme.colors.surface,
-                  borderWidth: theme.borderWidth.hairline,
-                  borderColor: active ? theme.colors.accent : theme.colors.line,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: theme.type.caption.size,
-                    fontWeight: theme.type.label.weight,
-                    color: active ? theme.colors.accentInk : theme.colors.ink,
-                  }}
-                >
-                  {t(`categories.${key}`)}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        {/* Sort chips */}
-        <View style={{ flexDirection: 'row', gap: theme.spacing.s2, marginTop: theme.spacing.s3, paddingHorizontal: theme.spacing.s4 }}>
-          <SortChip
-            label={t('discovery.sortName')}
-            active={activeSort === 'name'}
-            onPress={() => { setActiveSort('name'); setOffset(0); }}
-          />
-          <SortChip
-            label={t('discovery.sortNearest')}
-            active={activeSort === 'nearest'}
-            onPress={() => { setActiveSort('nearest'); setOffset(0); }}
-          />
-        </View>
-
-        {data && data.items.length > 0 && (
-          <Text
-            style={{
-              color: theme.colors.inkSoft,
-              fontSize: theme.type.caption.size,
-              marginTop: theme.spacing.s3,
-              paddingHorizontal: theme.spacing.s4,
-            }}
-          >
-            {`${t('discovery.allSalons')} · ${data.appliedSort === 'nearest' ? t('discovery.sortNearest') : t('discovery.sortName')}`}
-          </Text>
-        )}
-      </View>
-    ),
-    [theme, searchText, activeSort, activeCategory, data, t, onSearchChange, onCategoryPress],
-  );
-
-  const loadMore = useCallback(() => {
-    if (data?.page.nextOffset !== null && data?.page.nextOffset !== undefined) {
-      setOffset(data.page.nextOffset);
-    }
-  }, [data]);
+  const color = isClosed ? '#8A8780'
+    : isPaused ? '#9A5B00'
+    : isAvail ? '#1B7A38'
+    : salon.etaMinutes !== null && salon.etaMinutes > 30 ? '#B32430'
+    : '#7A5500';
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.bg, paddingTop: insets.top }}>
-      {/* Title bar */}
-      <View style={{ paddingHorizontal: theme.spacing.s4, paddingTop: theme.spacing.s4, paddingBottom: theme.spacing.s2 }}>
-        <Text
-          style={{
-            fontSize: theme.type.title.size,
-            fontWeight: theme.type.title.weight,
-            color: theme.colors.ink,
-          }}
-        >
-          {t('discovery.title')}
-        </Text>
-      </View>
-
-      {isLoading ? (
-        <>
-          {ListHeader}
-          <LoadingState label={t('common.loading')} />
-        </>
-      ) : isError ? (
-        <>
-          {ListHeader}
-          <ErrorState
-            title={t('errors.loadFailed')}
-            body={t('errors.networkError')}
-            onRetry={() => refetch()}
-            retryLabel={t('common.retry')}
-          />
-        </>
-      ) : data && data.items.length === 0 ? (
-        <>
-          {ListHeader}
-          <EmptyState title={t('discovery.noSalons')} body={t('discovery.noSalonsBody')} />
-        </>
-      ) : (
-        <FlatList
-          data={data?.items ?? []}
-          keyExtractor={(item) => item.id}
-          renderItem={renderSalon}
-          ListHeaderComponent={ListHeader}
-          contentContainerStyle={{ paddingBottom: insets.bottom + theme.spacing.s5 }}
-          onEndReached={loadMore}
-          onEndReachedThreshold={0.5}
-        />
-      )}
+    <View style={[styles.waitBadge, { backgroundColor: bg }]}>
+      <View style={[styles.waitDot, { backgroundColor: color }]} />
+      <Text style={[styles.waitText, { color }]}>{label}</Text>
     </View>
   );
 }
 
-function SortChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  const theme = useTheme();
+function SalonCard({ salon, onSave, saved }: { salon: MockSalon; onSave: () => void; saved: boolean }) {
+  const router = useRouter();
+  const tags = salon.tags.slice(0, 3).join(' · ');
+
   return (
     <Pressable
-      onPress={onPress}
+      style={styles.card}
+      onPress={() => router.push(`/salon/${salon.id}`)}
       accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      style={{
-        paddingHorizontal: theme.spacing.s4,
-        paddingVertical: theme.spacing.s2,
-        borderRadius: theme.radius.pill,
-        backgroundColor: active ? theme.colors.accent : theme.colors.surface,
-        borderWidth: theme.borderWidth.hairline,
-        borderColor: active ? theme.colors.accent : theme.colors.line,
-      }}
     >
-      <Text
-        style={{
-          fontSize: theme.type.caption.size,
-          fontWeight: theme.type.label.weight,
-          color: active ? theme.colors.accentInk : theme.colors.ink,
-        }}
-      >
-        {label}
-      </Text>
+      {/* Image */}
+      <View style={styles.imageContainer}>
+        <Image
+          source={{ uri: salon.photoUrl }}
+          style={styles.cardImage}
+          resizeMode="cover"
+        />
+        {/* Save button */}
+        <Pressable
+          style={styles.saveBtn}
+          onPress={onSave}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={saved ? 'Remove from saved' : 'Save salon'}
+        >
+          <Text style={{ fontSize: 20 }}>{saved ? '❤️' : '🤍'}</Text>
+        </Pressable>
+        {/* Rating badge */}
+        <View style={styles.ratingBadge}>
+          <Text style={styles.ratingText}>⭐ {salon.rating.average}</Text>
+        </View>
+      </View>
+
+      {/* Info */}
+      <View style={styles.cardBody}>
+        <View style={styles.cardRow}>
+          <Text style={styles.salonName} numberOfLines={1}>{salon.name}</Text>
+          <WaitBadge salon={salon} />
+        </View>
+
+        <Text style={styles.tagsText} numberOfLines={1}>{tags}</Text>
+
+        <View style={[styles.cardRow, { marginTop: 10 }]}>
+          <Text style={styles.distText}>
+            📍 {formatDistance(salon.distanceMeters)}
+          </Text>
+          {salon.openState === 'open' && salon.totalWaiting > 0 && (
+            <Text style={styles.queueInfo}>
+              {salon.totalWaiting} {salon.totalWaiting === 1 ? 'person' : 'people'} waiting
+            </Text>
+          )}
+        </View>
+
+        <Pressable
+          style={styles.viewBtn}
+          onPress={() => router.push(`/salon/${salon.id}`)}
+          accessibilityRole="button"
+        >
+          <Text style={styles.viewBtnText}>View Salon</Text>
+        </Pressable>
+      </View>
     </Pressable>
   );
 }
+
+export default function DiscoverScreen() {
+  const insets = useSafeAreaInsets();
+  const [query, setQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+
+  const filtered = useMemo(() => {
+    let list = filterSalonsByCategory(MOCK_SALONS, activeCategory);
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      list = list.filter(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          s.tags.some((t) => t.toLowerCase().includes(q)) ||
+          s.city.toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [query, activeCategory]);
+
+  const toggleSave = (id: string) => {
+    setSavedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const availableNow = MOCK_SALONS.filter(
+    (s) => s.openState === 'open' && (s.etaMinutes === null || s.etaMinutes <= 5),
+  ).length;
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <FlatList
+        data={filtered}
+        keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+        ListHeaderComponent={
+          <View>
+            {/* Greeting */}
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.greeting}>{greeting()} 👋</Text>
+                <Text style={styles.greetingSub}>Where do you want to go?</Text>
+              </View>
+              <View style={styles.locationChip}>
+                <Text style={styles.locationText}>📍 Ambarnath</Text>
+              </View>
+            </View>
+
+            {/* Search */}
+            <View style={styles.searchRow}>
+              <View style={styles.searchBar}>
+                <Text style={styles.searchIcon}>🔍</Text>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search salons, services..."
+                  placeholderTextColor="#B0ADA8"
+                  value={query}
+                  onChangeText={setQuery}
+                  returnKeyType="search"
+                />
+              </View>
+            </View>
+
+            {/* Categories */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryRow}
+            >
+              {SERVICE_CATEGORIES.map((cat) => (
+                <Pressable
+                  key={cat.id}
+                  style={[
+                    styles.categoryPill,
+                    activeCategory === cat.id && styles.categoryPillActive,
+                  ]}
+                  onPress={() => setActiveCategory(cat.id)}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.categoryIcon}>{cat.icon}</Text>
+                  <Text
+                    style={[
+                      styles.categoryLabel,
+                      activeCategory === cat.id && styles.categoryLabelActive,
+                    ]}
+                  >
+                    {cat.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            {/* Quick availability banner */}
+            {availableNow > 0 && (
+              <View style={styles.availBanner}>
+                <View style={styles.availDot} />
+                <Text style={styles.availText}>
+                  {availableNow} salon{availableNow > 1 ? 's' : ''} available right now
+                </Text>
+              </View>
+            )}
+
+            {/* Section heading */}
+            <View style={styles.sectionRow}>
+              <Text style={styles.sectionTitle}>
+                {activeCategory === 'all' ? 'Nearby Salons' : `${activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1)} Salons`}
+              </Text>
+              <Text style={styles.resultCount}>{filtered.length} found</Text>
+            </View>
+          </View>
+        }
+        renderItem={({ item }) => (
+          <SalonCard
+            salon={item}
+            saved={savedIds.has(item.id)}
+            onSave={() => toggleSave(item.id)}
+          />
+        )}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>🔍</Text>
+            <Text style={styles.emptyTitle}>No salons found</Text>
+            <Text style={styles.emptyBody}>Try a different search or category</Text>
+          </View>
+        }
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: BG,
+  },
+  listContent: {
+    paddingBottom: 100,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  greeting: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1E1E1C',
+  },
+  greetingSub: {
+    fontSize: 14,
+    color: '#605E57',
+    marginTop: 2,
+  },
+  locationChip: {
+    borderWidth: 1,
+    borderColor: '#E0D8CE',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#FFFFFF',
+  },
+  locationText: {
+    fontSize: 13,
+    color: MAROON,
+    fontWeight: '600',
+  },
+  searchRow: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E9E3D6',
+    gap: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+  },
+  searchIcon: {
+    fontSize: 18,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1E1E1C',
+  },
+  categoryRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    gap: 8,
+  },
+  categoryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#E0D8CE',
+    borderRadius: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+  },
+  categoryPillActive: {
+    backgroundColor: MAROON,
+    borderColor: MAROON,
+  },
+  categoryIcon: {
+    fontSize: 15,
+  },
+  categoryLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#605E57',
+  },
+  categoryLabelActive: {
+    color: '#FFFFFF',
+  },
+  availBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginVertical: 12,
+    backgroundColor: '#E8F5E9',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  availDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#1B7A38',
+  },
+  availText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1B7A38',
+  },
+  sectionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E1E1C',
+  },
+  resultCount: {
+    fontSize: 13,
+    color: '#8A8780',
+  },
+  card: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    overflow: 'hidden',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.07,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  imageContainer: {
+    height: 190,
+    position: 'relative',
+  },
+  cardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  saveBtn: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 20,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ratingBadge: {
+    position: 'absolute',
+    bottom: 10,
+    left: 12,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  ratingText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  cardBody: {
+    padding: 16,
+  },
+  cardRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  salonName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1E1E1C',
+    flex: 1,
+    marginRight: 8,
+  },
+  waitBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    gap: 5,
+  },
+  waitDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  waitText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  tagsText: {
+    fontSize: 13,
+    color: '#8A8780',
+    marginTop: 4,
+  },
+  distText: {
+    fontSize: 13,
+    color: '#8A8780',
+  },
+  queueInfo: {
+    fontSize: 12,
+    color: '#8A8780',
+  },
+  viewBtn: {
+    marginTop: 14,
+    backgroundColor: MAROON,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  viewBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    gap: 12,
+  },
+  emptyIcon: {
+    fontSize: 48,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E1E1C',
+  },
+  emptyBody: {
+    fontSize: 14,
+    color: '#8A8780',
+  },
+});

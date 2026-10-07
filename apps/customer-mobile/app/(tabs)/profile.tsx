@@ -1,199 +1,258 @@
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTranslation } from 'react-i18next';
-import { useTheme, Card, Divider, Avatar } from '@soliton/ui';
-import { changeLanguage, type SupportedLocale } from '@soliton/i18n';
-import { useAppStore } from '../../src/stores/appStore';
-import { i18n } from '../../src/i18n';
+import { useRouter } from 'expo-router';
 
-function SectionHeader({ label }: { label: string }) {
-  const theme = useTheme();
-  return (
-    <Text
-      style={{
-        fontSize: theme.type.caption.size,
-        fontWeight: theme.type.label.weight,
-        color: theme.colors.inkSoft,
-        textTransform: 'uppercase',
-        letterSpacing: 0.8,
-        marginBottom: theme.spacing.s2,
-        marginTop: theme.spacing.s4,
-        paddingHorizontal: theme.spacing.s1,
-      }}
-    >
-      {label}
-    </Text>
-  );
-}
+const MAROON = '#A50000';
 
-function RowItem({
-  label,
-  value,
-  selected,
-  onPress,
-  chevron = false,
-}: {
+function MenuItem({ icon, label, value, danger }: {
+  icon: string;
   label: string;
   value?: string;
-  selected?: boolean;
-  onPress?: () => void;
-  chevron?: boolean;
+  danger?: boolean;
 }) {
-  const theme = useTheme();
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole={selected !== undefined ? 'radio' : 'button'}
-      accessibilityState={selected !== undefined ? { selected } : undefined}
-      style={{
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: theme.spacing.s3,
-        minHeight: theme.minTouchTarget,
-      }}
-    >
-      <Text style={{ fontSize: theme.type.body.size, color: theme.colors.ink, flex: 1 }}>{label}</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.s2 }}>
-        {value ? (
-          <Text style={{ color: theme.colors.inkSoft, fontSize: theme.type.body.size }}>{value}</Text>
-        ) : null}
-        {selected ? (
-          <Text style={{ color: theme.colors.accent, fontSize: theme.type.body.size }}>✓</Text>
-        ) : null}
-        {chevron ? (
-          <Text style={{ color: theme.colors.inkSoft, fontSize: theme.type.body.size }}>›</Text>
-        ) : null}
+    <View style={styles.menuItem}>
+      <View style={[styles.menuIcon, danger && styles.menuIconDanger]}>
+        <Text style={{ fontSize: 18 }}>{icon}</Text>
       </View>
-    </Pressable>
+      <Text style={[styles.menuLabel, danger && { color: '#B32430' }]} numberOfLines={1}>{label}</Text>
+      <View style={{ flex: 1 }} />
+      {value ? <Text style={styles.menuValue}>{value}</Text> : null}
+      <Text style={[styles.chevron, danger && { color: '#B32430' }]}>›</Text>
+    </View>
   );
 }
 
-/** Customer profile screen: account, preferences, support, legal. */
 export default function ProfileScreen() {
-  const { t } = useTranslation();
-  const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const locale = useAppStore((s) => s.locale);
-  const setLocale = useAppStore((s) => s.setLocale);
-  const scheme = useAppStore((s) => s.colorScheme);
-  const setScheme = useAppStore((s) => s.setColorScheme);
-
-  const switchLanguage = async (next: SupportedLocale) => {
-    setLocale(next);
-    await changeLanguage(i18n, next);
-  };
+  const router = useRouter();
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.bg, paddingTop: insets.top }}>
-      <View style={{ paddingHorizontal: theme.spacing.s4, paddingVertical: theme.spacing.s4 }}>
-        <Text
-          style={{
-            fontSize: theme.type.title.size,
-            fontWeight: theme.type.title.weight,
-            color: theme.colors.ink,
-          }}
-        >
-          {t('profile.title')}
-        </Text>
-      </View>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-      <ScrollView
-        contentContainerStyle={{
-          paddingHorizontal: theme.spacing.s4,
-          paddingBottom: insets.bottom + theme.spacing.s5,
-        }}
-      >
-        {/* Account */}
-        <Card style={{ marginTop: theme.spacing.s1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.s3, paddingVertical: theme.spacing.s2 }}>
-            <Avatar label="GU" size={48} />
-            <View>
-              <Text style={{ fontSize: theme.type.label.size, fontWeight: theme.type.label.weight, color: theme.colors.ink }}>
-                {t('profile.guestUser')}
-              </Text>
-              <Text style={{ color: theme.colors.inkSoft, fontSize: theme.type.caption.size, marginTop: 2 }}>
-                {t('profile.signIn')}
-              </Text>
-            </View>
+        {/* Header */}
+        <Text style={styles.title}>Profile</Text>
+
+        {/* User card */}
+        <View style={styles.userCard}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>H</Text>
           </View>
-        </Card>
-
-        {/* Preferences */}
-        <SectionHeader label={t('profile.preferences')} />
-        <Card>
-          <Text
-            style={{
-              fontSize: theme.type.label.size,
-              fontWeight: theme.type.label.weight,
-              color: theme.colors.ink,
-              marginBottom: theme.spacing.s2,
-            }}
-          >
-            {t('settings.languageLabel')}
-          </Text>
-          <RowItem
-            label={t('settings.english')}
-            selected={locale === 'en'}
-            onPress={() => switchLanguage('en')}
-          />
-          <Divider />
-          <RowItem
-            label={t('settings.hindi')}
-            selected={locale === 'hi'}
-            onPress={() => switchLanguage('hi')}
-          />
-
-          <Divider />
-          <View style={{ marginTop: theme.spacing.s3, marginBottom: theme.spacing.s2 }}>
-            <Text
-              style={{
-                fontSize: theme.type.label.size,
-                fontWeight: theme.type.label.weight,
-                color: theme.colors.ink,
-                marginBottom: theme.spacing.s2,
-              }}
-            >
-              {t('settings.appearance')}
-            </Text>
-            <RowItem
-              label={t('settings.lightMode')}
-              selected={scheme === 'light'}
-              onPress={() => setScheme('light')}
-            />
-            <Divider />
-            <RowItem
-              label={t('settings.darkMode')}
-              selected={scheme === 'dark'}
-              onPress={() => setScheme('dark')}
-            />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.userName}>Himanshu</Text>
+            <Text style={styles.userEmail}>himanshu@example.com</Text>
           </View>
-        </Card>
+          <Pressable style={styles.editBtn}>
+            <Text style={styles.editBtnText}>Edit</Text>
+          </Pressable>
+        </View>
 
-        {/* Support */}
-        <SectionHeader label={t('profile.support')} />
-        <Card>
-          <RowItem label={t('profile.helpCenter')} chevron />
-          <Divider />
-          <RowItem label={t('profile.contactSupport')} chevron />
-        </Card>
+        {/* Premium card */}
+        <Pressable style={styles.premiumCard}>
+          <View>
+            <Text style={styles.premiumLabel}>✦ Solitan Premium</Text>
+            <Text style={styles.premiumSub}>Priority booking · Exclusive offers</Text>
+          </View>
+          <Text style={styles.premiumArrow}>→</Text>
+        </Pressable>
 
-        {/* Legal */}
-        <SectionHeader label={t('profile.legal')} />
-        <Card>
-          <RowItem label={t('profile.terms')} chevron />
-          <Divider />
-          <RowItem label={t('profile.privacy')} chevron />
-        </Card>
+        {/* Menu sections */}
+        <Text style={styles.sectionHeader}>MY ACTIVITY</Text>
+        <View style={styles.menuCard}>
+          <MenuItem icon="📋" label="My Appointments" />
+          <View style={styles.divider} />
+          <MenuItem icon="❤️" label="Saved Salons" />
+          <View style={styles.divider} />
+          <MenuItem icon="⭐" label="Reviews" />
+        </View>
 
-        {/* About */}
-        <SectionHeader label={t('settings.about')} />
-        <Card>
-          <Text style={{ color: theme.colors.inkSoft, fontSize: theme.type.body.size, lineHeight: 22 }}>
-            {t('settings.appDescription')}
-          </Text>
-        </Card>
+        <Text style={styles.sectionHeader}>PREFERENCES</Text>
+        <View style={styles.menuCard}>
+          <MenuItem icon="🔔" label="Notifications" />
+          <View style={styles.divider} />
+          <MenuItem icon="📍" label="Location" value="Ambarnath" />
+          <View style={styles.divider} />
+          <MenuItem icon="💳" label="Payment Methods" />
+        </View>
+
+        <Text style={styles.sectionHeader}>SUPPORT</Text>
+        <View style={styles.menuCard}>
+          <MenuItem icon="❓" label="Help & Support" />
+          <View style={styles.divider} />
+          <MenuItem icon="📞" label="Contact Us" />
+          <View style={styles.divider} />
+          <MenuItem icon="📄" label="Terms & Privacy" />
+        </View>
+
+        <Text style={styles.sectionHeader}>ACCOUNT</Text>
+        <View style={styles.menuCard}>
+          <MenuItem icon="🚪" label="Sign Out" danger />
+        </View>
+
+        <Text style={styles.version}>Solitan v1.0.0</Text>
       </ScrollView>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FAFAFA',
+  },
+  scroll: {
+    paddingHorizontal: 20,
+    paddingBottom: 100,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1E1E1C',
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  userCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    gap: 14,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    marginBottom: 14,
+  },
+  avatar: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: MAROON,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  userName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1E1E1C',
+  },
+  userEmail: {
+    fontSize: 13,
+    color: '#8A8780',
+    marginTop: 2,
+  },
+  editBtn: {
+    borderWidth: 1.5,
+    borderColor: MAROON,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  editBtnText: {
+    color: MAROON,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  premiumCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: MAROON,
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 20,
+    elevation: 4,
+    shadowColor: MAROON,
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  premiumLabel: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+  },
+  premiumSub: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.75)',
+    marginTop: 3,
+  },
+  premiumArrow: {
+    fontSize: 22,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  sectionHeader: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B0ADA8',
+    letterSpacing: 1.2,
+    marginBottom: 8,
+    marginTop: 4,
+    paddingHorizontal: 4,
+  },
+  menuCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    overflow: 'hidden',
+    marginBottom: 16,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 52,
+    gap: 12,
+  },
+  menuIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#F5F0EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuIconDanger: {
+    backgroundColor: '#FFF0F0',
+  },
+  menuLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#1E1E1C',
+  },
+  menuValue: {
+    fontSize: 14,
+    color: '#8A8780',
+    marginRight: 4,
+  },
+  chevron: {
+    fontSize: 20,
+    color: '#C4BFBA',
+    fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F0EDE8',
+    marginLeft: 64,
+  },
+  version: {
+    textAlign: 'center',
+    fontSize: 13,
+    color: '#C4BFBA',
+    marginTop: 8,
+    marginBottom: 20,
+  },
+});

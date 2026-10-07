@@ -22,7 +22,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <ErrorBoundary>
       <I18nextProvider i18n={i18n}>
         <QueryClientProvider client={queryClient}>
-          <ThemeProvider scheme={scheme}>
+          <ThemeProvider scheme={scheme} accent="#A50000">
             <SafeAreaProvider>{children}</SafeAreaProvider>
           </ThemeProvider>
         </QueryClientProvider>
