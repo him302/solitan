@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+// SwaggerModule disabled: tsx/esbuild does not emit design:paramtypes metadata
 import { AppModule } from './app.module';
 import { AppConfigService } from './modules/config/app-config.service';
 import { PinoLoggerService } from './common/logging/pino-logger.service';
@@ -34,16 +34,6 @@ async function bootstrap(): Promise<void> {
     app.useWebSocketAdapter(redisAdapter);
   }
 
-  // API docs are development-only and never document nonexistent business APIs.
-  if (!config.isProduction) {
-    const docConfig = new DocumentBuilder()
-      .setTitle('Soliton API')
-      .setDescription('Soliton backend API (foundation).')
-      .setVersion(config.apiVersion)
-      .build();
-    const document = SwaggerModule.createDocument(app, docConfig);
-    SwaggerModule.setup(`${config.apiPrefix}/docs`, app, document);
-  }
 
   await app.listen(config.port);
   logger.info(

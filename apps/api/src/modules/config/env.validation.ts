@@ -70,6 +70,8 @@ const refinedEnvSchema = envSchema.superRefine((env, ctx) => {
   }
 });
 
+let _cachedEnv: Env | null = null;
+
 /** Validator passed to Nest's ConfigModule. Throws a readable, secret-free error if invalid. */
 export function validateEnv(config: Record<string, unknown>): Env {
   const result = refinedEnvSchema.safeParse(config);
@@ -79,5 +81,12 @@ export function validateEnv(config: Record<string, unknown>): Env {
       .join('\n');
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
+  _cachedEnv = result.data;
   return result.data;
+}
+
+/** Returns the validated env. Safe to call from any provider — validateEnv runs at module import time. */
+export function getValidatedEnv(): Env {
+  if (!_cachedEnv) throw new Error('getValidatedEnv() called before validateEnv()');
+  return _cachedEnv;
 }

@@ -4,7 +4,11 @@
  * TokenStore), and no React: usable from both mobile apps and the admin web.
  */
 import type {
+  AppointmentDto,
+  AppointmentSummaryDto,
+  AvailabilitySlot,
   AuthTokens,
+  CreateAppointmentInput,
   CreateBookingInput,
   CreateSalonInput,
   CreateServiceInput,
@@ -13,6 +17,7 @@ import type {
   DiscoverySort,
   GeocodeResponse,
   JoinQueueInput,
+  ListSalonAppointmentsInput,
   Location,
   MapMarkersResponse,
   MySalonDto,
@@ -138,6 +143,32 @@ export function createSolitonApi(config: HttpClientConfig) {
       resume: (salonId: string) => http.post<{ status: string }>(`/queue/${salonId}/resume`, {}),
       /** Staff: close queue. */
       close: (salonId: string) => http.post<{ status: string }>(`/queue/${salonId}/close`, {}),
+    },
+    appointments: {
+      /** Customer: list own appointments. */
+      list: () => http.get<AppointmentSummaryDto[]>('/me/appointments'),
+      /** Customer or staff: get appointment detail. */
+      get: (id: string) => http.get<AppointmentDto>(`/appointments/${id}`),
+      /** Customer: book an appointment. */
+      create: (input: CreateAppointmentInput) => http.post<AppointmentDto>('/appointments', input),
+      /** Customer: cancel own appointment. */
+      cancel: (id: string) => http.patch<AppointmentDto>(`/appointments/${id}/cancel`, {}),
+      /** Customer: tap "I'm On My Way". */
+      onWay: (id: string) => http.post<AppointmentDto>(`/appointments/${id}/on-way`, {}),
+      /** Customer: check in → transitions to queue. */
+      checkIn: (id: string) => http.post<AppointmentDto>(`/appointments/${id}/check-in`, {}),
+      /** Salon staff/owner: list appointments for a salon on a given date. */
+      listForSalon: (salonId: string, params?: ListSalonAppointmentsInput) =>
+        http.get<AppointmentSummaryDto[]>(`/salons/${salonId}/appointments`, params),
+      /** Salon staff/owner: mark appointment as no-show. */
+      noShow: (id: string) => http.post<AppointmentDto>(`/appointments/${id}/no-show`, {}),
+      /** Salon staff/owner: start service for checked-in appointment. */
+      start: (id: string) => http.post<AppointmentDto>(`/appointments/${id}/start`, {}),
+      /** Salon staff/owner: complete appointment service. */
+      complete: (id: string) => http.post<AppointmentDto>(`/appointments/${id}/complete`, {}),
+      /** Get available slots for a salon/service/date. */
+      availability: (salonId: string, serviceId: string, date: string) =>
+        http.get<AvailabilitySlot[]>(`/salons/${salonId}/availability`, { serviceId, date }),
     },
   };
 }

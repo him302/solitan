@@ -1,18 +1,18 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import type { Env } from './env.validation';
+import { type Env, getValidatedEnv } from './env.validation';
 
 /**
  * Typed accessor over the validated environment. Exposes only what callers need and
  * derives convenience values (CORS origins list, environment flags). Never exposes or
  * logs secret values wholesale.
+ *
+ * Reads from the module-level validated-env cache populated by validateEnv() at import
+ * time, so it has no constructor dependencies and is safe to inject in any factory.
  */
 @Injectable()
 export class AppConfigService {
-  constructor(private readonly config: ConfigService<Env, true>) {}
-
   private get<K extends keyof Env>(key: K): Env[K] {
-    return this.config.get(key, { infer: true });
+    return getValidatedEnv()[key];
   }
 
   get nodeEnv(): Env['NODE_ENV'] {

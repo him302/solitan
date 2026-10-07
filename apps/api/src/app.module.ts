@@ -12,12 +12,9 @@ import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { MapsModule } from './modules/maps/maps.module';
 import { ProvidersModule } from './modules/providers/providers.module';
 import { QueueModule } from './modules/queue/queue.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AppointmentsModule } from './modules/appointments/appointments.module';
 
-/**
- * Root module. Future feature modules (salon, queue, eta, …) are added here without
- * touching main.ts. Phase 0H adds the realtime foundation (gateway + Redis), no
- * business logic.
- */
 @Module({
   imports: [
     ConfigModule,
@@ -33,6 +30,8 @@ import { QueueModule } from './modules/queue/queue.module';
     DiscoveryModule,
     MapsModule,
     QueueModule,
+    NotificationsModule,
+    AppointmentsModule,
   ],
 })
 export class AppModule {}

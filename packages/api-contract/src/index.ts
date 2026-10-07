@@ -150,3 +150,6 @@ export * from './booking';
 
 // ---------------- Phase 3: live queue engine ----------------
 export * from './queue';
+
+// ---------------- Phase 4: appointments ----------------
+export * from './appointment';
