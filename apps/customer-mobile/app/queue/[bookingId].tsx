@@ -7,7 +7,7 @@ import type { QueueEntryDto, SalonAnnouncementDto } from '@soliton/api-contract'
 import { useBooking, useCancelBooking, BOOKINGS_KEY } from '../../src/hooks/useBookings';
 import { useEntryRealtime } from '../../src/hooks/useEntryRealtime';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMarkArrived, useReportLate, useChangeService, useAnnouncements, useSalonQueue } from '../../src/hooks/useQueue';
+import { useMarkArrived, useReportLate, useAnnouncements, useSalonQueue } from '../../src/hooks/useQueue';
 import { useLocation } from '../../src/hooks/useLocation';
 import { useSalonDetail } from '../../src/hooks/useSalonDetail';
 import { formatDuration, formatPrice } from '../../src/utils/format';
@@ -17,8 +17,6 @@ import {
   leaveByTime,
   type TravelMode,
 } from '../../src/services/location.service';
-
-const MAROON = '#A50000';
 
 function fmtTime(iso: string | null | undefined): string {
   if (!iso) return '—';

@@ -84,7 +84,7 @@ export default function QueueScreen() {
   const postAnnounce  = usePostAnnouncement(salonId);
   const search        = useQueueSearch(salonId);
   const setCapacity   = useSetCapacity(salonId);
-  const setNoShowPol  = useSetNoShowPolicy(salonId);
+  const _setNoShowPol  = useSetNoShowPolicy(salonId);
 
   const isLoading = salonLoading || (queueLoading && !queue);
 

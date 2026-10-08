@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AppointmentsService } from './appointments.service';
@@ -9,7 +10,7 @@ import {
 } from './appointments.controller';
 
 @Module({
-  imports: [PrismaModule, NotificationsModule],
+  imports: [AuthModule, PrismaModule, NotificationsModule],
   providers: [AppointmentsService],
   controllers: [AppointmentsController, MyAppointmentsController, SalonAppointmentsController],
   exports: [AppointmentsService],

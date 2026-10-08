@@ -15,8 +15,10 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "postinstall": "node scripts/fix-styled-jsx-react.cjs"
   },
+  "pnpm": {},
   "devDependencies": {
     "@soliton/config": "workspace:*",
     "eslint": "^9.15.0",
