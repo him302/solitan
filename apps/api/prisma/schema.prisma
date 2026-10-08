@@ -140,10 +140,12 @@ model Salon {
   queueStatus   QueueStatus                            @default(closed)
   averageRating Float?
   reviewCount   Int                                    @default(0)
-  bufferConfig Json?
-  photoUrl     String?
-  createdAt    DateTime                               @default(now())
-  updatedAt    DateTime                               @updatedAt
+  bufferConfig     Json?
+  noShowPolicy     String?  @default("none")
+  noShowThreshold  Int      @default(2)
+  photoUrl         String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   services      Service[]
   chairs        Chair[]
@@ -244,6 +246,7 @@ model Queue {
   queueVersion BigInt      @default(0)
   tokenSeq     Int         @default(0)
   sequenceSeq  BigInt      @default(0)
+  maxCapacity  Int?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 

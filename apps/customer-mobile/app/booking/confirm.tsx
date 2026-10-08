@@ -152,6 +152,11 @@ export default function BookingConfirmScreen() {
                     ⚠️ Queue is {queueSnapshot.status}. You may not be able to join right now.
                   </Text>
                 )}
+                {queueSnapshot.isAtCapacity && queueSnapshot.status === 'open' && (
+                  <Text style={{ color: theme.colors.danger, fontSize: 13, marginTop: 8, textAlign: 'center', fontWeight: '600' }}>
+                    🚫 Queue is full — existing customers are still being served. Check back soon.
+                  </Text>
+                )}
               </Card>
             )}
 

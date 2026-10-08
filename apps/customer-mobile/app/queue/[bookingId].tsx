@@ -7,9 +7,16 @@ import type { QueueEntryDto, SalonAnnouncementDto } from '@soliton/api-contract'
 import { useBooking, useCancelBooking, BOOKINGS_KEY } from '../../src/hooks/useBookings';
 import { useEntryRealtime } from '../../src/hooks/useEntryRealtime';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMarkArrived, useReportLate, useChangeService, useAnnouncements } from '../../src/hooks/useQueue';
+import { useMarkArrived, useReportLate, useChangeService, useAnnouncements, useSalonQueue } from '../../src/hooks/useQueue';
+import { useLocation } from '../../src/hooks/useLocation';
+import { useSalonDetail } from '../../src/hooks/useSalonDetail';
 import { formatDuration, formatPrice } from '../../src/utils/format';
-import { etaRange as etaRangeLabel } from '../../src/services/location.service';
+import {
+  etaRange as etaRangeLabel,
+  travelMinutes,
+  leaveByTime,
+  type TravelMode,
+} from '../../src/services/location.service';
 
 const MAROON = '#A50000';
 
@@ -133,6 +140,7 @@ export default function QueueTrackScreen() {
   const markArrived = useMarkArrived();
   const [showLate, setShowLate] = useState(false);
   const [activeTab, setActiveTab] = useState<'status' | 'updates'>('status');
+  const [travelMode, setTravelMode] = useState<TravelMode>('walk');
 
   // HTTP baseline — polls every 8s for resilience when Socket.IO is unavailable.
   const { data: httpEntry, isLoading, isError } = useBooking(bookingId ?? null);
@@ -151,6 +159,13 @@ export default function QueueTrackScreen() {
 
   // Announcements for this salon
   const { data: announcements = [] } = useAnnouncements(entry?.salonId);
+
+  // Queue snapshot for freshness indicator
+  const { dataUpdatedAt } = useSalonQueue(entry?.salonId);
+
+  // Location + salon detail for distance → Leave By calculation (Sc.50)
+  const { location } = useLocation();
+  const { data: salonDetail } = useSalonDetail(entry?.salonId ?? '', location ?? undefined);
 
   if (isLoading && !entry) return <LoadingState label="Loading…" />;
   if ((isError && !entry) || (!isLoading && !entry)) {
@@ -190,6 +205,15 @@ export default function QueueTrackScreen() {
     Alert.alert('Marked Arrived', 'The salon has been notified you have arrived.');
   }
 
+  // Freshness: how many minutes ago was the snapshot last polled.
+  const freshnessMinutes = dataUpdatedAt ? Math.floor((Date.now() - dataUpdatedAt) / 60_000) : null;
+  const isStale = freshnessMinutes != null && freshnessMinutes >= 3;
+
+  // Leave By (Sc.37, 50): requires slotStartAt + distance from salon detail
+  const distanceMeters = salonDetail?.distanceMeters ?? null;
+  const leaveBy = leaveByTime(b.slotStartAt, distanceMeters, travelMode, 5);
+  const travelMin = distanceMeters != null ? travelMinutes(distanceMeters, travelMode) : null;
+
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg, paddingTop: insets.top }}>
       {/* Header */}
@@ -197,9 +221,16 @@ export default function QueueTrackScreen() {
         <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
           <Text style={{ fontSize: 20, color: theme.colors.ink }}>←</Text>
         </Pressable>
-        <Text style={{ fontSize: theme.type.section.size, fontWeight: theme.type.section.weight, color: theme.colors.ink, flex: 1 }} numberOfLines={1}>
-          {b.salonName}
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: theme.type.section.size, fontWeight: theme.type.section.weight, color: theme.colors.ink }} numberOfLines={1}>
+            {b.salonName}
+          </Text>
+          {freshnessMinutes !== null && (
+            <Text style={{ fontSize: 11, color: isStale ? theme.colors.danger : theme.colors.inkSoft }}>
+              {isStale ? '⚠️ ' : ''}{freshnessMinutes === 0 ? 'Just updated' : `Updated ${freshnessMinutes} min ago`}
+            </Text>
+          )}
+        </View>
       </View>
 
       {/* Tabs */}
@@ -268,7 +299,7 @@ export default function QueueTrackScreen() {
               )}
             </Card>
 
-            {/* Time slot — clearly show assigned window */}
+            {/* Time slot + Leave By — Sc.7, 37, 50 */}
             {(b.slotStartAt || b.slotEndAt) && isActive && (
               <Card>
                 <Text style={{ color: theme.colors.inkSoft, fontSize: theme.type.caption.size, marginBottom: 4 }}>
@@ -277,8 +308,47 @@ export default function QueueTrackScreen() {
                 <Text style={{ color: theme.colors.ink, fontSize: 18, fontWeight: '700' }}>
                   {fmtTime(b.slotStartAt)} – {fmtTime(b.slotEndAt)}
                 </Text>
-                <Text style={{ color: theme.colors.inkSoft, fontSize: 12, marginTop: 4 }}>
-                  Arriving before your slot won't move you up automatically. Missing your window may give the next customer your opportunity.
+
+                {/* Travel mode picker — Sc.35 */}
+                {distanceMeters != null && (
+                  <>
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 10, marginBottom: 4 }}>
+                      {(['walk', 'bike', 'drive'] as TravelMode[]).map((mode) => (
+                        <Pressable
+                          key={mode}
+                          onPress={() => setTravelMode(mode)}
+                          style={{ flex: 1, borderWidth: 1.5, borderColor: travelMode === mode ? theme.colors.accent : theme.colors.line, borderRadius: 8, paddingVertical: 5, alignItems: 'center', backgroundColor: travelMode === mode ? theme.colors.accent + '15' : 'transparent' }}
+                        >
+                          <Text style={{ fontSize: 14 }}>{mode === 'walk' ? '🚶' : mode === 'bike' ? '🚲' : '🚗'}</Text>
+                          <Text style={{ fontSize: 10, color: travelMode === mode ? theme.colors.accent : theme.colors.inkSoft, fontWeight: travelMode === mode ? '700' : '400' }}>
+                            {mode}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                    {travelMin != null && (
+                      <Text style={{ color: theme.colors.inkSoft, fontSize: 12 }}>
+                        Travel ~{travelMin} min
+                      </Text>
+                    )}
+                  </>
+                )}
+
+                {/* Leave By hero */}
+                {leaveBy && (
+                  <View style={{ marginTop: 10, backgroundColor: theme.colors.surface2, borderRadius: 8, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={{ fontSize: 20 }}>⏰</Text>
+                    <View>
+                      <Text style={{ color: theme.colors.inkSoft, fontSize: 11, fontWeight: '600', textTransform: 'uppercase' }}>Leave By</Text>
+                      <Text style={{ color: theme.colors.ink, fontSize: 20, fontWeight: '800' }}>
+                        {leaveBy.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                <Text style={{ color: theme.colors.inkSoft, fontSize: 12, marginTop: 6 }}>
+                  Arriving before your slot won't move you up automatically.
                 </Text>
               </Card>
             )}

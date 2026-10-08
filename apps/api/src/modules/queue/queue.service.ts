@@ -155,11 +155,41 @@ export class QueueService {
     // Validate: queue exists and accepts new entries (open or limited — limited blocks new joins)
     const queue = await this.prisma.queue.findUnique({
       where: { salonId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, maxCapacity: true },
     });
     if (!queue) throw new NotFoundException('Queue not found for this salon.');
     if (queue.status !== 'open') {
       throw new ConflictException(`Queue is currently ${queue.status}.`);
+    }
+
+    // Capacity guard: reject join when waiting count has reached maxCapacity.
+    if (queue.maxCapacity != null) {
+      const waitingNow = await this.prisma.queueEntry.count({
+        where: { salonId, state: { in: ['waiting', 'notified', 'checked_in'] } },
+      });
+      if (waitingNow >= queue.maxCapacity) {
+        throw new ConflictException('Queue is full. Please try again later.');
+      }
+    }
+
+    // No-show policy: check per-customer no-show history for this salon.
+    if (customerId) {
+      const salon = await this.prisma.salon.findUnique({
+        where: { id: salonId },
+        select: { noShowPolicy: true, noShowThreshold: true },
+      });
+      if (salon?.noShowPolicy && salon.noShowPolicy !== 'none') {
+        const noShowCount = await this.prisma.queueEntry.count({
+          where: { salonId, customerId, state: 'no_show' },
+        });
+        if (noShowCount >= (salon.noShowThreshold ?? 2)) {
+          if (salon.noShowPolicy === 'restrict') {
+            throw new ConflictException('You have too many no-shows at this salon. Please contact them directly.');
+          }
+          // 'warn' and 'skip' are handled client-side via the snapshot warning flag;
+          // 'skip' will be enforced by the owner at check-in time.
+        }
+      }
     }
 
     // Validate preferredStaffId belongs to this salon.
@@ -630,6 +660,27 @@ export class QueueService {
     return { status: 'limited' };
   }
 
+  /** Owner: set or clear queue capacity limit. */
+  async setCapacity(staffId: string, salonId: string, maxCapacity: number | null): Promise<{ maxCapacity: number | null }> {
+    await this.assertStaffAccess(staffId, salonId);
+    await this.prisma.queue.update({
+      where: { salonId },
+      data: { maxCapacity },
+    });
+    this.emitQueueControl(salonId, 'queue.opened');
+    return { maxCapacity };
+  }
+
+  /** Owner: configure no-show policy for the salon. */
+  async setNoShowPolicy(staffId: string, salonId: string, policy: string, threshold: number): Promise<{ policy: string; threshold: number }> {
+    await this.assertStaffAccess(staffId, salonId);
+    await this.prisma.salon.update({
+      where: { id: salonId },
+      data: { noShowPolicy: policy, noShowThreshold: threshold },
+    });
+    return { policy, threshold };
+  }
+
   /** Staff: post a manual announcement. */
   async postAnnouncement(
     salonId: string,
@@ -744,6 +795,7 @@ export class QueueService {
         id: true,
         status: true,
         queueVersion: true,
+        maxCapacity: true,
         entries: {
           where: { state: { in: ['waiting', 'notified', 'checked_in', 'in_service'] } },
           orderBy: { sequenceNo: 'asc' },
@@ -818,6 +870,8 @@ export class QueueService {
 
     const etaForNext = this.eta.etaForNextJoin(waiting.length, inService.length, avgDuration);
 
+    const isAtCapacity = queue.maxCapacity != null && waiting.length >= queue.maxCapacity;
+
     return {
       salonId,
       status: queue.status as QueueStatus,
@@ -826,6 +880,9 @@ export class QueueService {
       activeChairs: inService.length,
       etaMinutes: etaForNext,
       version: queue.queueVersion.toString(),
+      snapshotAt: new Date().toISOString(),
+      maxCapacity: queue.maxCapacity ?? null,
+      isAtCapacity,
       entries,
     };
   }

@@ -4,9 +4,11 @@ import type {
   ChangeServiceInput,
   LateReportInput,
   LateResponseInput,
+  NoShowPolicyInput,
   QueueEntryDto,
   SalonAnnouncementDto,
   SalonQueueSnapshot,
+  SetCapacityInput,
   StaffActionInput,
   StaffEntryRow,
 } from '@soliton/api-contract';
@@ -171,5 +173,19 @@ export function useRespondLate(salonId: string | undefined) {
 export function useMarkArrived() {
   return useMutation<QueueEntryDto, Error, string>({
     mutationFn: (entryId) => api.queue.arrive(entryId),
+  });
+}
+
+export function useSetCapacity(salonId: string | undefined) {
+  const { invalidate } = useEntryAction(salonId);
+  return useMutation<{ maxCapacity: number | null }, Error, SetCapacityInput>({
+    mutationFn: (input) => api.queue.setCapacity(salonId!, input),
+    onSuccess: invalidate,
+  });
+}
+
+export function useSetNoShowPolicy(salonId: string | undefined) {
+  return useMutation<{ policy: string; threshold: number }, Error, NoShowPolicyInput>({
+    mutationFn: (input) => api.queue.setNoShowPolicy(salonId!, input),
   });
 }

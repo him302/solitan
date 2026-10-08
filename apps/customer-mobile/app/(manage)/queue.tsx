@@ -29,6 +29,8 @@ import {
   useRespondLate,
   usePostAnnouncement,
   useAnnouncements,
+  useSetCapacity,
+  useSetNoShowPolicy,
 } from '../../src/hooks/useQueue';
 
 type QueueStatus = 'open' | 'limited' | 'paused' | 'closed';
@@ -58,6 +60,8 @@ export default function QueueScreen() {
   const [searchText, setSearchText] = useState('');
   const [announceText, setAnnounceText] = useState('');
   const [showAnnounceBox, setShowAnnounceBox] = useState(false);
+  const [showCapacityBox, setShowCapacityBox] = useState(false);
+  const [capacityInput, setCapacityInput] = useState('');
 
   const { data: salon, isLoading: salonLoading } = useMySalon();
   const salonId = salon?.id;
@@ -77,8 +81,10 @@ export default function QueueScreen() {
   const limit        = useLimitQueue(salonId);
   const undoComplete = useUndoComplete(salonId);
   const respondLate  = useRespondLate(salonId);
-  const postAnnounce = usePostAnnouncement(salonId);
-  const search       = useQueueSearch(salonId);
+  const postAnnounce  = usePostAnnouncement(salonId);
+  const search        = useQueueSearch(salonId);
+  const setCapacity   = useSetCapacity(salonId);
+  const setNoShowPol  = useSetNoShowPolicy(salonId);
 
   const isLoading = salonLoading || (queueLoading && !queue);
 
@@ -135,7 +141,16 @@ export default function QueueScreen() {
           {queue.etaMinutes !== null && (
             <StatBox label="ETA" value={`~${queue.etaMinutes}m`} theme={theme} />
           )}
+          {queue.maxCapacity != null && (
+            <StatBox label="Capacity" value={`${waiting.length}/${queue.maxCapacity}`} theme={theme} />
+          )}
         </View>
+        {/* Sc.39 — capacity full warning */}
+        {queue.isAtCapacity && (
+          <Text style={{ color: theme.colors.danger, fontSize: 13, fontWeight: '600', marginTop: 8, textAlign: 'center' }}>
+            🚫 Queue Full — new customers cannot join
+          </Text>
+        )}
       </Card>
 
       {/* Queue controls — scenario 4, 23, 26 */}
@@ -156,6 +171,7 @@ export default function QueueScreen() {
           <ActionButton label="Close Queue"   color={theme.colors.danger}  onPress={() => confirmAction('Close queue for the day?', () => void close.mutateAsync())} loading={close.isPending}  theme={theme} />
         )}
         <ActionButton label="Announce"        color={theme.colors.inkSoft} onPress={() => setShowAnnounceBox(!showAnnounceBox)} loading={false} theme={theme} />
+        <ActionButton label="Capacity"        color={theme.colors.inkSoft} onPress={() => setShowCapacityBox(!showCapacityBox)} loading={false} theme={theme} />
       </View>
 
       {/* Announce panel — scenario 3 */}
@@ -182,6 +198,52 @@ export default function QueueScreen() {
           >
             <Text style={{ color: theme.colors.accentInk, fontWeight: '600' }}>Post</Text>
           </Pressable>
+        </Card>
+      )}
+
+      {/* Capacity panel — Sc.39 */}
+      {showCapacityBox && (
+        <Card>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: theme.colors.ink, marginBottom: 4 }}>
+            Max Queue Capacity
+          </Text>
+          <Text style={{ fontSize: 12, color: theme.colors.inkSoft, marginBottom: 8 }}>
+            {queue.maxCapacity != null ? `Current limit: ${queue.maxCapacity}` : 'No limit set — queue is unlimited.'}
+          </Text>
+          <TextInput
+            value={capacityInput}
+            onChangeText={setCapacityInput}
+            placeholder="Enter number (leave blank to remove limit)"
+            placeholderTextColor={theme.colors.inkSoft}
+            keyboardType="number-pad"
+            style={{ borderWidth: 1, borderColor: theme.colors.line, borderRadius: 8, padding: 10, color: theme.colors.ink, fontSize: 14 }}
+          />
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+            <Pressable
+              onPress={async () => {
+                const val = capacityInput.trim() === '' ? null : parseInt(capacityInput.trim(), 10);
+                if (val !== null && (isNaN(val) || val < 1)) return;
+                await setCapacity.mutateAsync({ maxCapacity: val }).catch(() => null);
+                setCapacityInput('');
+                setShowCapacityBox(false);
+              }}
+              disabled={setCapacity.isPending}
+              style={{ flex: 1, backgroundColor: theme.colors.accent, borderRadius: 8, paddingVertical: 8, alignItems: 'center', opacity: setCapacity.isPending ? 0.5 : 1 }}
+            >
+              <Text style={{ color: theme.colors.accentInk, fontWeight: '600' }}>Save</Text>
+            </Pressable>
+            {queue.maxCapacity != null && (
+              <Pressable
+                onPress={async () => {
+                  await setCapacity.mutateAsync({ maxCapacity: null }).catch(() => null);
+                  setShowCapacityBox(false);
+                }}
+                style={{ flex: 1, borderWidth: 1, borderColor: theme.colors.danger, borderRadius: 8, paddingVertical: 8, alignItems: 'center' }}
+              >
+                <Text style={{ color: theme.colors.danger, fontWeight: '600' }}>Remove Limit</Text>
+              </Pressable>
+            )}
+          </View>
         </Card>
       )}
 

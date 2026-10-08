@@ -78,6 +78,24 @@ export default function DashboardScreen() {
           )}
         </Card>
 
+        {/* Sc.47 — Queue not activated warning */}
+        {salon.openState === 'open' && salon.queueStatus !== 'open' && salon.queueStatus !== 'limited' && (
+          <Pressable
+            onPress={() => router.push('/(manage)/queue')}
+            accessibilityRole="button"
+            style={{ backgroundColor: '#FFF3E0', borderRadius: 12, padding: theme.spacing.s4, borderWidth: 1.5, borderColor: '#E65100', flexDirection: 'row', alignItems: 'center', gap: 10 }}
+          >
+            <Text style={{ fontSize: 22 }}>⚠️</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#E65100', fontWeight: '700', fontSize: 14 }}>Queue not activated</Text>
+              <Text style={{ color: '#BF360C', fontSize: 13, marginTop: 2 }}>
+                Your salon is open but the queue is {salon.queueStatus}. Tap to manage the queue.
+              </Text>
+            </View>
+            <Text style={{ color: '#E65100', fontSize: 18 }}>›</Text>
+          </Pressable>
+        )}
+
         {overview && (
           <View style={{ gap: theme.spacing.s3 }}>
             <Text style={{ fontSize: theme.type.label.size, fontWeight: theme.type.label.weight, color: theme.colors.ink }}>

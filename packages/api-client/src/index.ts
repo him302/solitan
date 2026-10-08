@@ -9,6 +9,8 @@ import type {
   AdminUpdateSalonStatusInput,
   AnalyticsQuery,
   AnnouncementInput,
+  NoShowPolicyInput,
+  SetCapacityInput,
   AppointmentAnalyticsDto,
   AppointmentDto,
   AppointmentSummaryDto,
@@ -196,6 +198,12 @@ export function createSolitonApi(config: HttpClientConfig) {
       /** Staff: search queue entries. */
       search: (salonId: string, q: string) =>
         http.get<StaffEntryRow[]>(`/queue/${salonId}/search`, { q }),
+      /** Owner: set or clear queue capacity. */
+      setCapacity: (salonId: string, input: SetCapacityInput) =>
+        http.patch<{ maxCapacity: number | null }>(`/queue/${salonId}/capacity`, input),
+      /** Owner: configure no-show policy. */
+      setNoShowPolicy: (salonId: string, input: NoShowPolicyInput) =>
+        http.patch<{ policy: string; threshold: number }>(`/queue/${salonId}/noshowpolicy`, input),
     },
     appointments: {
       /** Customer: list own appointments. */

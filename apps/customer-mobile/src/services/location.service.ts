@@ -69,3 +69,32 @@ export function etaRange(etaMinutes: number): string {
   if (lo === hi) return `${lo} min`;
   return `${lo}–${hi} min`;
 }
+
+export type TravelMode = 'walk' | 'bike' | 'drive';
+
+const TRAVEL_SPEED_KPH: Record<TravelMode, number> = {
+  walk: 5,
+  bike: 15,
+  drive: 25,
+};
+
+/** Travel time in minutes for a given distance and mode. */
+export function travelMinutes(distanceMeters: number, mode: TravelMode): number {
+  const km = distanceMeters / 1000;
+  return Math.max(1, Math.round((km / TRAVEL_SPEED_KPH[mode]) * 60));
+}
+
+/**
+ * "Leave By" = slotStartAt - travelMinutes - bufferMinutes.
+ * Returns null if slotStartAt is null/undefined.
+ */
+export function leaveByTime(
+  slotStartAt: string | null | undefined,
+  distanceMeters: number | null | undefined,
+  mode: TravelMode,
+  bufferMinutes = 5,
+): Date | null {
+  if (!slotStartAt || distanceMeters == null) return null;
+  const travel = travelMinutes(distanceMeters, mode);
+  return new Date(new Date(slotStartAt).getTime() - (travel + bufferMinutes) * 60_000);
+}

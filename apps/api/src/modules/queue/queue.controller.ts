@@ -23,12 +23,16 @@ import {
   lateResponseSchema,
   changeServiceSchema,
   announcementSchema,
+  setCapacitySchema,
+  noShowPolicySchema,
   type JoinQueueInput,
   type StaffActionInput,
   type LateReportInput,
   type LateResponseInput,
   type ChangeServiceInput,
   type AnnouncementInput,
+  type SetCapacityInput,
+  type NoShowPolicyInput,
 } from '@soliton/api-contract';
 import { CurrentUser, type RequestUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -327,5 +331,27 @@ export class QueueController {
   ) {
     if (!q?.trim()) throw new BadRequestException('q is required');
     return this.queue.searchQueue(user.id, salonId, q.trim());
+  }
+
+  /** Owner: set or clear queue capacity limit. */
+  @Patch(':salonId/capacity')
+  @UseGuards(JwtAuthGuard)
+  setCapacity(
+    @CurrentUser() user: RequestUser,
+    @Param('salonId', ParseUUIDPipe) salonId: string,
+    @Body(new ZodPipe(setCapacitySchema)) body: SetCapacityInput,
+  ) {
+    return this.queue.setCapacity(user.id, salonId, body.maxCapacity);
+  }
+
+  /** Owner: configure no-show policy. */
+  @Patch(':salonId/noshowpolicy')
+  @UseGuards(JwtAuthGuard)
+  setNoShowPolicy(
+    @CurrentUser() user: RequestUser,
+    @Param('salonId', ParseUUIDPipe) salonId: string,
+    @Body(new ZodPipe(noShowPolicySchema)) body: NoShowPolicyInput,
+  ) {
+    return this.queue.setNoShowPolicy(user.id, salonId, body.policy, body.threshold);
   }
 }

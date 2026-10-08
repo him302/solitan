@@ -76,6 +76,12 @@ export interface SalonQueueSnapshot {
   etaMinutes: number | null;
   /** Monotonically increasing version (serialised BigInt). */
   version: string;
+  /** ISO timestamp when this snapshot was generated (for freshness display). */
+  snapshotAt: string;
+  /** Configured max simultaneous waiting entries; null = unlimited. */
+  maxCapacity: number | null;
+  /** True when waitingCount >= maxCapacity and queue is effectively full. */
+  isAtCapacity: boolean;
   /** Waiting entry list for staff dashboard. */
   entries: StaffEntryRow[];
 }
@@ -149,6 +155,21 @@ export interface SalonAnnouncementDto {
   createdAt: string;
   entryId: string | null;
 }
+
+export const setCapacitySchema = z
+  .object({
+    maxCapacity: z.number().int().min(1).nullable(),
+  })
+  .strict();
+export type SetCapacityInput = z.infer<typeof setCapacitySchema>;
+
+export const noShowPolicySchema = z
+  .object({
+    policy: z.enum(['none', 'warn', 'skip', 'restrict']),
+    threshold: z.number().int().min(1).max(10).default(2),
+  })
+  .strict();
+export type NoShowPolicyInput = z.infer<typeof noShowPolicySchema>;
 
 export const staffActionSchema = z
   .object({
