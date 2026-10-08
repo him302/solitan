@@ -5,6 +5,7 @@ import { IsString } from 'class-validator';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/bootstrap';
+import { PrismaService } from '../src/modules/prisma/prisma.service';
 
 // --- test-only DTO + controller to exercise the global validation pipe ---
 class EchoDto {
@@ -32,6 +33,9 @@ describe('API foundation (e2e)', () => {
     app = moduleRef.createNestApplication({ bodyParser: false });
     configureApp(app, { apiPrefix: 'api', isProduction: false, corsOrigins: '*' });
     await app.init();
+    // Warm up the Prisma connection pool so the first $queryRaw doesn't time
+    // out on slow CI runners that use lazy connection semantics.
+    await moduleRef.get(PrismaService).$connect();
   });
 
   afterAll(async () => {
