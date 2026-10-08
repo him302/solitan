@@ -16,7 +16,22 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "outputs": []
+      "outputs": [],
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "REDIS_URL",
+        "NODE_ENV",
+        "JWT_ACCESS_SECRET",
+        "FREE_LOCAL_MODE",
+        "MAP_PROVIDER",
+        "OTP_PROVIDER",
+        "PAYMENT_PROVIDER",
+        "PAYMENTS_ENABLED",
+        "MOCK_PAYMENTS_ENABLED",
+        "MESSAGING_PROVIDER",
+        "STORAGE_PROVIDER",
+        "ANALYTICS_PROVIDER"
+      ]
     },
     "dev": {
       "cache": false,
