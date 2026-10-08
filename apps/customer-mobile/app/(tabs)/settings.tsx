@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '@soliton/ui';
 import { Divider, Card } from '@soliton/ui';
 import { changeLanguage, type SupportedLocale } from '@soliton/i18n';
-import { useAppStore } from '../../src/stores/appStore';
+import { useAppStore, type AppColorScheme } from '../../src/stores/appStore';
 import { i18n } from '../../src/i18n';
 
 /** Customer settings screen: language and appearance. */
@@ -80,6 +80,12 @@ export default function SettingsScreen() {
           >
             {t('settings.appearance')}
           </Text>
+          <OptionRow
+            label={t('settings.systemMode')}
+            selected={scheme === 'system'}
+            onPress={() => setScheme('system' as AppColorScheme)}
+          />
+          <Divider />
           <OptionRow
             label={t('settings.lightMode')}
             selected={scheme === 'light'}

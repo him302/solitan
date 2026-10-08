@@ -1,22 +1,24 @@
 import { useState, type ReactNode } from 'react';
+import { useColorScheme } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { I18nextProvider } from 'react-i18next';
 import { ThemeProvider } from '@soliton/ui';
+import type { ColorScheme } from '@soliton/design-tokens';
 import { ErrorBoundary } from './ErrorBoundary';
 import { useAppStore } from '../stores/appStore';
 import { i18n } from '../i18n';
 
-/**
- * Provider composition, in the approved order:
- *   ErrorBoundary → Localization → QueryClient → Theme → App Shell.
- *
- * Theme is @soliton/ui's ThemeProvider so both app screens and shared UI components
- * read from the same context.
- */
 export function AppProviders({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
-  const scheme = useAppStore((state) => state.colorScheme);
+  const appScheme = useAppStore((state) => state.colorScheme);
+  const deviceScheme = useColorScheme(); // 'light' | 'dark' | null
+
+  // Resolve 'system' to the actual device scheme; fall back to 'light' for null/unspecified
+  const resolvedDevice: ColorScheme =
+    deviceScheme === 'dark' ? 'dark' : 'light';
+  const scheme: ColorScheme =
+    appScheme === 'system' ? resolvedDevice : appScheme;
 
   return (
     <ErrorBoundary>

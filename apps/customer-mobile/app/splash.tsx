@@ -1,57 +1,84 @@
 import { useEffect, useRef } from 'react';
-import { Animated, View, Text, StyleSheet } from 'react-native';
+import { Animated, Easing, View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 
 const MAROON = '#A50000';
+const WHITE = '#FFFFFF';
+const WHITE_DIM = 'rgba(255,255,255,0.65)';
 
 export default function SplashScreen() {
   const router = useRouter();
-  const opacity = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(0.85)).current;
+
+  // Phase 1: full screen fade in (bg is already maroon — this fades the logo group in)
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+  const logoScale = useRef(new Animated.Value(0.82)).current;
+  // Phase 2: tagline fades in slightly after logo settles
+  const taglineOpacity = useRef(new Animated.Value(0)).current;
+  // Phase 3: exit fade
+  const screenOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(opacity, {
+    Animated.sequence([
+      // Logo fade + spring scale in
+      Animated.parallel([
+        Animated.timing(logoOpacity, {
+          toValue: 1,
+          duration: 480,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.spring(logoScale, {
+          toValue: 1,
+          friction: 7,
+          tension: 55,
+          useNativeDriver: true,
+        }),
+      ]),
+      // Tagline fades in while logo settles
+      Animated.timing(taglineOpacity, {
         toValue: 1,
-        duration: 600,
+        duration: 300,
+        delay: 80,
+        easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       }),
-      Animated.spring(scale, {
-        toValue: 1,
-        friction: 8,
-        tension: 60,
+      // Hold
+      Animated.delay(820),
+      // Exit: fade out the whole screen
+      Animated.timing(screenOpacity, {
+        toValue: 0,
+        duration: 280,
+        easing: Easing.in(Easing.quad),
         useNativeDriver: true,
       }),
-    ]).start();
-
-    const timer = setTimeout(() => {
+    ]).start(() => {
       router.replace('/onboarding');
-    }, 2200);
-
-    return () => clearTimeout(timer);
+    });
   }, []);
 
   return (
-    <View style={styles.container}>
-      <Animated.View style={[styles.content, { opacity, transform: [{ scale }] }]}>
+    <Animated.View style={[styles.container, { opacity: screenOpacity }]}>
+      <Animated.View style={[styles.content, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
         <View style={styles.logoMark}>
           <Text style={styles.logoSymbol}>✦</Text>
         </View>
         <Text style={styles.brandName}>SOLITAN</Text>
-        <Text style={styles.tagline}>Skip the wait.{'\n'}Enjoy the service.</Text>
+        <Animated.Text style={[styles.tagline, { opacity: taglineOpacity }]}>
+          Skip the wait.{'\n'}Enjoy the service.
+        </Animated.Text>
       </Animated.View>
 
-      <Animated.Text style={[styles.footer, { opacity }]}>
+      <Animated.Text style={[styles.footer, { opacity: logoOpacity }]}>
         Your neighbourhood salon, on demand.
       </Animated.Text>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: MAROON,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,
@@ -61,27 +88,27 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   logoMark: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    backgroundColor: MAROON,
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: WHITE,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
   },
   logoSymbol: {
-    fontSize: 32,
-    color: '#FFFFFF',
+    fontSize: 36,
+    color: MAROON,
   },
   brandName: {
-    fontSize: 36,
+    fontSize: 38,
     fontWeight: '800',
-    color: MAROON,
-    letterSpacing: 6,
+    color: WHITE,
+    letterSpacing: 7,
   },
   tagline: {
     fontSize: 18,
-    color: '#605E57',
+    color: WHITE_DIM,
     textAlign: 'center',
     lineHeight: 26,
     fontWeight: '400',
@@ -91,7 +118,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 48,
     fontSize: 13,
-    color: '#A0A0A0',
+    color: WHITE_DIM,
     letterSpacing: 0.3,
   },
 });

@@ -1,8 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Platform, Text, View } from 'react-native';
-
-const MAROON = '#A50000';
-const INACTIVE = '#C4BFBA';
+import { useTheme } from '@soliton/ui';
 
 type TabIconProps = { label: string; focused: boolean };
 
@@ -15,14 +13,16 @@ function TabIcon({ label, focused }: TabIconProps) {
 }
 
 export default function TabLayout() {
+  const theme = useTheme();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: MAROON,
-        tabBarInactiveTintColor: INACTIVE,
+        tabBarActiveTintColor: theme.colors.accent,
+        tabBarInactiveTintColor: theme.colors.inkSoft,
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
+          backgroundColor: theme.colors.surface,
           borderTopWidth: 0,
           elevation: 20,
           shadowColor: '#000',
