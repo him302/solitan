@@ -45,6 +45,18 @@ export interface QueueEntryDto {
   etaMinutes: number | null;
   /** Assigned chair label (when in_service). */
   chairLabel: string | null;
+  /** ISO timestamp when customer physically arrived at salon. */
+  arrivedAt: string | null;
+  /** Customer-reported delay in minutes (I'm Late). null = not reported. */
+  lateMinutes: number | null;
+  /** How the owner responded to a late report (kept/moved/skipped). */
+  lateAction: string | null;
+  /** Preferred staff member name (informational). */
+  preferredStaffName: string | null;
+  /** Assigned time slot start. */
+  slotStartAt: string | null;
+  /** Assigned time slot end. */
+  slotEndAt: string | null;
   createdAt: string;
   /** Server queue version at the time this DTO was generated. */
   queueVersion: string;
@@ -77,6 +89,14 @@ export interface StaffEntryRow {
   entryState: EntryState;
   etaMinutes: number | null;
   chairLabel: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  arrivedAt: string | null;
+  lateMinutes: number | null;
+  lateAction: string | null;
+  preferredStaffName: string | null;
+  slotStartAt: string | null;
+  slotEndAt: string | null;
   createdAt: string;
 }
 
@@ -86,9 +106,49 @@ export const joinQueueSchema = z
   .object({
     salonId: z.string().uuid(),
     serviceId: z.string().uuid(),
+    preferredStaffId: z.string().uuid().optional(),
   })
   .strict();
 export type JoinQueueInput = z.infer<typeof joinQueueSchema>;
+
+export const lateReportSchema = z
+  .object({
+    minutes: z.number().int().min(5).max(60),
+  })
+  .strict();
+export type LateReportInput = z.infer<typeof lateReportSchema>;
+
+export const lateResponseSchema = z
+  .object({
+    action: z.enum(['keep', 'move_behind', 'skip', 'contact']),
+  })
+  .strict();
+export type LateResponseInput = z.infer<typeof lateResponseSchema>;
+
+export const changeServiceSchema = z
+  .object({
+    serviceId: z.string().uuid(),
+  })
+  .strict();
+export type ChangeServiceInput = z.infer<typeof changeServiceSchema>;
+
+export const announcementSchema = z
+  .object({
+    type: z.enum(['info', 'delay', 'paused', 'closed', 'reopened']).default('info'),
+    body: z.string().trim().min(1).max(500),
+    entryId: z.string().uuid().optional(),
+  })
+  .strict();
+export type AnnouncementInput = z.infer<typeof announcementSchema>;
+
+export interface SalonAnnouncementDto {
+  id: string;
+  salonId: string;
+  type: string;
+  body: string;
+  createdAt: string;
+  entryId: string | null;
+}
 
 export const staffActionSchema = z
   .object({
@@ -106,10 +166,16 @@ export type QueueEventType =
   | 'queue.entry.joined'
   | 'queue.entry.notified'
   | 'queue.entry.checked_in'
+  | 'queue.entry.arrived'
   | 'queue.entry.started'
   | 'queue.entry.completed'
   | 'queue.entry.no_show'
   | 'queue.entry.cancelled'
+  | 'queue.entry.late_reported'
+  | 'queue.entry.service_changed'
   | 'queue.paused'
   | 'queue.resumed'
-  | 'queue.closed';
+  | 'queue.closed'
+  | 'queue.limited'
+  | 'queue.opened'
+  | 'queue.announcement';

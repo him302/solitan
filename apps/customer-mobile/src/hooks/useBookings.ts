@@ -30,14 +30,15 @@ export interface CreateBookingArgs {
   salonId: string;
   serviceId: string;
   idempotencyKey?: string;
+  preferredStaffId?: string;
 }
 
 /** Join queue (replaces Phase 2 mock booking creation). */
 export function useCreateBooking() {
   const queryClient = useQueryClient();
   return useMutation<QueueEntryDto, Error, CreateBookingArgs>({
-    mutationFn: ({ salonId, serviceId, idempotencyKey }) =>
-      api.queue.join({ salonId, serviceId }, idempotencyKey),
+    mutationFn: ({ salonId, serviceId, idempotencyKey, preferredStaffId }) =>
+      api.queue.join({ salonId, serviceId, preferredStaffId }, idempotencyKey),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [BOOKINGS_KEY] });
     },

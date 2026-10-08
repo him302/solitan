@@ -35,6 +35,15 @@ export function useSalonHours(salonId: string | undefined) {
   });
 }
 
+export function useSalonStaff(salonId: string | undefined) {
+  return useQuery<{ id: string; name: string }[]>({
+    queryKey: ['salon-staff', salonId],
+    queryFn: () => api.salons.staff(salonId!),
+    enabled: !!salonId,
+    staleTime: 60_000,
+  });
+}
+
 export function usePutHours() {
   const queryClient = useQueryClient();
   return useMutation({

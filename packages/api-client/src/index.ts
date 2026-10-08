@@ -8,11 +8,13 @@ import type {
   AdminSalonListQuery,
   AdminUpdateSalonStatusInput,
   AnalyticsQuery,
+  AnnouncementInput,
   AppointmentAnalyticsDto,
   AppointmentDto,
   AppointmentSummaryDto,
   AvailabilitySlot,
   AuthTokens,
+  ChangeServiceInput,
   ComplaintDto,
   CreateAppointmentInput,
   CreateBookingInput,
@@ -27,6 +29,8 @@ import type {
   DiscoverySort,
   GeocodeResponse,
   JoinQueueInput,
+  LateReportInput,
+  LateResponseInput,
   ListSalonAppointmentsInput,
   Location,
   MapMarkersResponse,
@@ -41,6 +45,7 @@ import type {
   QueueEntryDto,
   QueueStateDto,
   ReviewDto,
+  SalonAnnouncementDto,
   SalonHealthScoreDto,
   SalonOverviewDto,
   SalonQueueSnapshot,
@@ -49,6 +54,7 @@ import type {
   ServiceAnalyticsDto,
   ServiceDto,
   StaffActionInput,
+  StaffEntryRow,
   UpdateReviewInput,
   UpdateSalonInput,
   UpdateServiceInput,
@@ -113,6 +119,7 @@ export function createSolitonApi(config: HttpClientConfig) {
       detail: (id: string, viewer?: Location) =>
         http.get<SalonDetailDto>(`/salons/${id}`, viewerQuery(viewer)),
       hours: (id: string) => http.get<OperatingHoursDto>(`/salons/${id}/hours`),
+      staff: (id: string) => http.get<{ id: string; name: string }[]>(`/salons/${id}/staff`),
       mine: () => http.get<MySalonDto>('/me/salon'),
       create: (input: CreateSalonInput) => http.post<MySalonDto>('/salons', input),
       update: (id: string, input: UpdateSalonInput) =>
@@ -151,11 +158,24 @@ export function createSolitonApi(config: HttpClientConfig) {
       notify: (entryId: string) => http.post<QueueEntryDto>(`/queue/entries/${entryId}/notify`, {}),
       /** Staff/Customer: check in (state: notified → checked_in). */
       checkIn: (entryId: string) => http.post<QueueEntryDto>(`/queue/entries/${entryId}/checkin`, {}),
+      /** Customer/Staff: mark physical arrival at salon. */
+      arrive: (entryId: string) => http.post<QueueEntryDto>(`/queue/entries/${entryId}/arrive`, {}),
+      /** Customer: report running late. */
+      reportLate: (entryId: string, input: LateReportInput) =>
+        http.post<QueueEntryDto>(`/queue/entries/${entryId}/late`, input),
+      /** Staff: respond to a late report. */
+      respondLate: (entryId: string, input: LateResponseInput) =>
+        http.post<QueueEntryDto>(`/queue/entries/${entryId}/late-response`, input),
+      /** Customer/Staff: change service on active entry. */
+      changeService: (entryId: string, input: ChangeServiceInput) =>
+        http.patch<QueueEntryDto>(`/queue/entries/${entryId}/service`, input),
       /** Staff: start service (state: checked_in → in_service). */
       startService: (entryId: string, input: StaffActionInput) =>
         http.post<QueueEntryDto>(`/queue/entries/${entryId}/start`, input),
       /** Staff: complete service (state: in_service → completed). */
       complete: (entryId: string) => http.post<QueueEntryDto>(`/queue/entries/${entryId}/complete`, {}),
+      /** Staff: undo a recent completion. */
+      undoComplete: (entryId: string) => http.post<QueueEntryDto>(`/queue/entries/${entryId}/undo-complete`, {}),
       /** Staff: mark no-show. */
       noShow: (entryId: string) => http.post<QueueEntryDto>(`/queue/entries/${entryId}/noshow`, {}),
       /** Staff: pause queue. */
@@ -164,6 +184,18 @@ export function createSolitonApi(config: HttpClientConfig) {
       resume: (salonId: string) => http.post<{ status: string }>(`/queue/${salonId}/resume`, {}),
       /** Staff: close queue. */
       close: (salonId: string) => http.post<{ status: string }>(`/queue/${salonId}/close`, {}),
+      /** Staff: open queue (from any state). */
+      open: (salonId: string) => http.post<{ status: string }>(`/queue/${salonId}/open`, {}),
+      /** Staff: set queue to limited mode (no new joins). */
+      limit: (salonId: string) => http.post<{ status: string }>(`/queue/${salonId}/limited`, {}),
+      /** Anyone: list recent salon announcements. */
+      announcements: (salonId: string) => http.get<SalonAnnouncementDto[]>(`/queue/${salonId}/announcements`),
+      /** Staff: post an announcement. */
+      announce: (salonId: string, input: AnnouncementInput) =>
+        http.post<SalonAnnouncementDto>(`/queue/${salonId}/announcements`, input),
+      /** Staff: search queue entries. */
+      search: (salonId: string, q: string) =>
+        http.get<StaffEntryRow[]>(`/queue/${salonId}/search`, { q }),
     },
     appointments: {
       /** Customer: list own appointments. */

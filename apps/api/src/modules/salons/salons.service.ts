@@ -180,6 +180,16 @@ export class SalonsService {
     return toHoursDto(rows);
   }
 
+  /** Public: list active staff members for a salon (name + id only). */
+  async listStaff(salonId: string): Promise<{ id: string; name: string }[]> {
+    const members = await this.prisma.salonStaff.findMany({
+      where: { salonId, active: true },
+      select: { id: true, user: { select: { name: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+    return members.map((m) => ({ id: m.id, name: m.user.name ?? 'Staff' }));
+  }
+
   /** The signed-in user's own salon: their active owner/staff membership. */
   async getMine(user: RequestUser): Promise<MySalonDto> {
     const membership = await this.prisma.salonStaff.findFirst({

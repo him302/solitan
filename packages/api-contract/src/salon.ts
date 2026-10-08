@@ -10,7 +10,7 @@ export const SALON_TIMEZONE = 'Asia/Kolkata';
 export const CURRENCY = 'INR';
 
 export type SalonStatus = 'pending' | 'active' | 'suspended';
-export type QueueStatus = 'open' | 'paused' | 'closed';
+export type QueueStatus = 'open' | 'limited' | 'paused' | 'closed';
 /** 'unconfigured' = the salon has not set hours; we never pretend it is open. */
 export type OpenState = 'open' | 'closed' | 'unconfigured';
 

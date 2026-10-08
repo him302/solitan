@@ -32,6 +32,7 @@ enum SalonStatus {
 
 enum QueueStatus {
   open
+  limited
   paused
   closed
 }
@@ -119,10 +120,11 @@ model User {
   deviceTokens  DeviceToken[]
   complaints    Complaint[]    @relation("ComplaintReporter")
   platformAudits PlatformAudit[] @relation("PlatformAuditActor")
-  refreshTokens RefreshToken[]
-  auditActions  QueueAudit[]   @relation("AuditActor")
-  appointments  Appointment[]
-  payments      Payment[]
+  refreshTokens  RefreshToken[]
+  auditActions   QueueAudit[]         @relation("AuditActor")
+  appointments   Appointment[]
+  payments       Payment[]
+  announcements  SalonAnnouncement[]  @relation("AnnouncementActor")
 
   @@map("users")
 }
@@ -143,17 +145,18 @@ model Salon {
   createdAt    DateTime                               @default(now())
   updatedAt    DateTime                               @updatedAt
 
-  services     Service[]
-  chairs       Chair[]
-  staff        SalonStaff[]
-  hours        OperatingHours[]
-  queue        Queue?
-  entries      QueueEntry[]
-  reviews      Review[]
-  appointments Appointment[]
-  complaints   Complaint[]
-  payments     Payment[]
-  audits       QueueAudit[]
+  services      Service[]
+  chairs        Chair[]
+  staff         SalonStaff[]
+  hours         OperatingHours[]
+  queue         Queue?
+  entries       QueueEntry[]
+  reviews       Review[]
+  appointments  Appointment[]
+  complaints    Complaint[]
+  payments      Payment[]
+  audits        QueueAudit[]
+  announcements SalonAnnouncement[]
 
   @@index([ownerId])
   @@index([status])
@@ -171,9 +174,10 @@ model SalonStaff {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  capabilities  StaffService[]
-  servedEntries QueueEntry[]   @relation("EntryStaff")
-  appointments  Appointment[]  @relation("StaffAppointments")
+  capabilities      StaffService[]
+  servedEntries     QueueEntry[]   @relation("EntryStaff")
+  preferredByEntries QueueEntry[]  @relation("EntryPreferredStaff")
+  appointments      Appointment[]  @relation("StaffAppointments")
 
   @@unique([salonId, userId])
   @@unique([id, salonId])
@@ -274,12 +278,21 @@ model QueueEntry {
   startedAt      DateTime?
   completedAt    DateTime?
   paymentStatus  PaymentStatus? @default(none)
+  arrivedAt      DateTime?
+  lateMinutes    Int?
+  lateAckedAt    DateTime?
+  lateAction     String?
+  preferredStaffId String?      @db.Uuid
+  preferredStaff   SalonStaff?  @relation("EntryPreferredStaff", fields: [preferredStaffId], references: [id])
+  slotStartAt    DateTime?
+  slotEndAt      DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
   review      Review?
   complaints  Complaint[]
   payments    Payment[]
+  announcement SalonAnnouncement[]
   appointment Appointment? @relation("AppointmentEntry")
 
   @@index([salonId, state])
@@ -468,6 +481,22 @@ model PlatformAudit {
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("platform_audits")
+}
+
+model SalonAnnouncement {
+  id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  salonId   String      @db.Uuid
+  salon     Salon       @relation(fields: [salonId], references: [id])
+  actorId   String      @db.Uuid
+  actor     User        @relation("AnnouncementActor", fields: [actorId], references: [id])
+  entryId   String?     @db.Uuid
+  entry     QueueEntry? @relation(fields: [entryId], references: [id])
+  type      String      @default("info")
+  body      String
+  createdAt DateTime    @default(now())
+
+  @@index([salonId, createdAt(sort: Desc)])
+  @@map("salon_announcements")
 }
 
 model RefreshToken {

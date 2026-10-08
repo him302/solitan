@@ -1,5 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { QueueEntryDto, SalonQueueSnapshot, StaffActionInput } from '@soliton/api-contract';
+import type {
+  AnnouncementInput,
+  ChangeServiceInput,
+  LateReportInput,
+  LateResponseInput,
+  QueueEntryDto,
+  SalonAnnouncementDto,
+  SalonQueueSnapshot,
+  StaffActionInput,
+  StaffEntryRow,
+} from '@soliton/api-contract';
 import { api } from '../api';
 
 export const QUEUE_KEY = 'queue';
@@ -85,5 +95,81 @@ export function useCloseQueue(salonId: string | undefined) {
   return useMutation<{ status: string }, Error, void>({
     mutationFn: () => api.queue.close(salonId!),
     onSuccess: invalidate,
+  });
+}
+
+export function useOpenQueue(salonId: string | undefined) {
+  const { invalidate } = useEntryAction(salonId);
+  return useMutation<{ status: string }, Error, void>({
+    mutationFn: () => api.queue.open(salonId!),
+    onSuccess: invalidate,
+  });
+}
+
+export function useLimitQueue(salonId: string | undefined) {
+  const { invalidate } = useEntryAction(salonId);
+  return useMutation<{ status: string }, Error, void>({
+    mutationFn: () => api.queue.limit(salonId!),
+    onSuccess: invalidate,
+  });
+}
+
+export function useUndoComplete(salonId: string | undefined) {
+  const { invalidate } = useEntryAction(salonId);
+  return useMutation<QueueEntryDto, Error, string>({
+    mutationFn: (entryId) => api.queue.undoComplete(entryId),
+    onSuccess: invalidate,
+  });
+}
+
+export function useAnnouncements(salonId: string | undefined) {
+  return useQuery<SalonAnnouncementDto[]>({
+    queryKey: ['announcements', salonId],
+    queryFn: () => api.queue.announcements(salonId!),
+    enabled: !!salonId,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
+}
+
+export function usePostAnnouncement(salonId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation<SalonAnnouncementDto, Error, AnnouncementInput>({
+    mutationFn: (input) => api.queue.announce(salonId!, input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['announcements', salonId] });
+    },
+  });
+}
+
+export function useQueueSearch(salonId: string | undefined) {
+  return useMutation<StaffEntryRow[], Error, string>({
+    mutationFn: (q) => api.queue.search(salonId!, q),
+  });
+}
+
+export function useChangeService() {
+  return useMutation<QueueEntryDto, Error, { entryId: string; input: ChangeServiceInput }>({
+    mutationFn: ({ entryId, input }) => api.queue.changeService(entryId, input),
+  });
+}
+
+export function useReportLate() {
+  return useMutation<QueueEntryDto, Error, { entryId: string; input: LateReportInput }>({
+    mutationFn: ({ entryId, input }) => api.queue.reportLate(entryId, input),
+  });
+}
+
+export function useRespondLate(salonId: string | undefined) {
+  const { invalidate } = useEntryAction(salonId);
+  return useMutation<QueueEntryDto, Error, { entryId: string; input: LateResponseInput }>({
+    mutationFn: ({ entryId, input }) => api.queue.respondLate(entryId, input),
+    onSuccess: invalidate,
+  });
+}
+
+export function useMarkArrived() {
+  return useMutation<QueueEntryDto, Error, string>({
+    mutationFn: (entryId) => api.queue.arrive(entryId),
   });
 }

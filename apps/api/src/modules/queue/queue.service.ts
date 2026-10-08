@@ -10,11 +10,16 @@ import {
   buildRealtimeEvent,
   entryRoom,
   salonRoom,
+  type AnnouncementInput,
   type BookingStatus,
+  type ChangeServiceInput,
   type EntryState as ContractEntryState,
+  type LateReportInput,
+  type LateResponseInput,
   type QueueEntryDto,
   type QueueEventType,
   type QueueStatus,
+  type SalonAnnouncementDto,
   type SalonQueueSnapshot,
   type StaffEntryRow,
 } from '@soliton/api-contract';
@@ -57,6 +62,11 @@ const entrySelect = {
   customerId: true,
   serviceId: true,
   etaMinutes: true,
+  arrivedAt: true,
+  lateMinutes: true,
+  lateAction: true,
+  slotStartAt: true,
+  slotEndAt: true,
   createdAt: true,
   queue: {
     select: {
@@ -67,6 +77,7 @@ const entrySelect = {
   },
   service: { select: { name: true, priceCents: true, estimatedMinutes: true } },
   chair: { select: { label: true } },
+  preferredStaff: { select: { user: { select: { name: true } } } },
 } as const;
 
 type EntryWithRelations = Prisma.QueueEntryGetPayload<{ select: typeof entrySelect }>;
@@ -99,6 +110,7 @@ export class QueueService {
     salonId: string,
     serviceId: string,
     idempotencyKey: string | undefined,
+    preferredStaffId?: string,
   ): Promise<QueueEntryDto> {
     // Idempotency check — return existing entry if key matches a recent entry.
     if (idempotencyKey) {
@@ -119,7 +131,7 @@ export class QueueService {
       }
     }
 
-    // Guard: customer already in active queue for this salon.
+    // Guard: customer already in active queue for this salon — return existing entry.
     const duplicate = await this.prisma.queueEntry.findFirst({
       where: {
         customerId,
@@ -129,7 +141,8 @@ export class QueueService {
       select: { id: true },
     });
     if (duplicate) {
-      throw new ConflictException('You already have an active entry in this queue.');
+      const existing = await this.loadEntry(duplicate.id);
+      return this.toEntryDto(existing, await this.positionAhead(existing));
     }
 
     // Validate: service belongs to this salon and is active.
@@ -139,7 +152,7 @@ export class QueueService {
     });
     if (!service) throw new NotFoundException('Service not found or inactive.');
 
-    // Validate: queue exists and is open.
+    // Validate: queue exists and accepts new entries (open or limited — limited blocks new joins)
     const queue = await this.prisma.queue.findUnique({
       where: { salonId },
       select: { id: true, status: true },
@@ -147,6 +160,15 @@ export class QueueService {
     if (!queue) throw new NotFoundException('Queue not found for this salon.');
     if (queue.status !== 'open') {
       throw new ConflictException(`Queue is currently ${queue.status}.`);
+    }
+
+    // Validate preferredStaffId belongs to this salon.
+    if (preferredStaffId) {
+      const staff = await this.prisma.salonStaff.findFirst({
+        where: { id: preferredStaffId, salonId, active: true },
+        select: { id: true },
+      });
+      if (!staff) preferredStaffId = undefined;
     }
 
     // Concurrency-safe token + entry creation in a single transaction.
@@ -162,6 +184,14 @@ export class QueueService {
         select: { id: true, tokenSeq: true, sequenceSeq: true, queueVersion: true },
       });
 
+      // Compute slot window based on current queue length
+      const waitingCount = await tx.queueEntry.count({
+        where: { queueId: updated.id, state: { in: ['waiting', 'notified', 'checked_in'] } },
+      });
+      const svc = await tx.service.findUnique({ where: { id: serviceId }, select: { estimatedMinutes: true } });
+      const slotStartAt = new Date(Date.now() + waitingCount * (svc?.estimatedMinutes ?? 30) * 60_000);
+      const slotEndAt = new Date(slotStartAt.getTime() + (svc?.estimatedMinutes ?? 30) * 60_000);
+
       const created = await tx.queueEntry.create({
         data: {
           queueId: updated.id,
@@ -172,6 +202,9 @@ export class QueueService {
           tokenNumber: updated.tokenSeq,
           sequenceNo: updated.sequenceSeq,
           state: 'waiting',
+          preferredStaffId: preferredStaffId ?? null,
+          slotStartAt,
+          slotEndAt,
         },
         select: { id: true },
       });
@@ -382,19 +415,31 @@ export class QueueService {
     return this.transition(entry, 'no_show', staffId, 'no_show');
   }
 
-  /** Pause queue (open → paused). */
+  /** Pause queue. */
   async pauseQueue(staffId: string, salonId: string): Promise<{ status: PrismaQueueStatus }> {
     await this.assertStaffAccess(staffId, salonId);
-    await this.setQueueStatus(salonId, 'open', 'paused');
+    const queue = await this.prisma.queue.findUnique({ where: { salonId }, select: { status: true } });
+    if (!queue) throw new NotFoundException('Queue not found.');
+    if (!['open', 'limited'].includes(queue.status)) {
+      throw new ConflictException(`Queue is currently ${queue.status}, cannot pause.`);
+    }
+    await this.prisma.queue.update({ where: { salonId }, data: { status: 'paused', queueVersion: { increment: 1 } } });
     this.emitQueueControl(salonId, 'queue.paused');
+    await this.postAnnouncement(salonId, staffId, { type: 'paused', body: 'Queue paused. New customers cannot join. Existing customers remain in queue.' });
     return { status: 'paused' };
   }
 
-  /** Resume queue (paused → open). */
+  /** Resume queue (paused/limited → open). */
   async resumeQueue(staffId: string, salonId: string): Promise<{ status: PrismaQueueStatus }> {
     await this.assertStaffAccess(staffId, salonId);
-    await this.setQueueStatus(salonId, 'paused', 'open');
+    const queue = await this.prisma.queue.findUnique({ where: { salonId }, select: { status: true } });
+    if (!queue) throw new NotFoundException('Queue not found.');
+    if (!['paused', 'limited'].includes(queue.status)) {
+      throw new ConflictException(`Queue is currently ${queue.status}, expected paused or limited.`);
+    }
+    await this.prisma.queue.update({ where: { salonId }, data: { status: 'open', queueVersion: { increment: 1 } } });
     this.emitQueueControl(salonId, 'queue.resumed');
+    await this.postAnnouncement(salonId, staffId, { type: 'reopened', body: 'Queue is open again.' });
     return { status: 'open' };
   }
 
@@ -411,7 +456,263 @@ export class QueueService {
       data: { status: 'closed', queueVersion: { increment: 1 } },
     });
     this.emitQueueControl(salonId, 'queue.closed');
+    await this.postAnnouncement(salonId, staffId, { type: 'closed', body: 'Queue has been closed for today. Thank you for your patience.' });
     return { status: 'closed' };
+  }
+
+  // ── Phase 10: new operations ───────────────────────────────────────────────
+
+  /** Customer or staff: mark physical arrival at salon. */
+  async markArrived(actorId: string, entryId: string): Promise<QueueEntryDto> {
+    const entry = await this.loadEntry(entryId);
+    const isCustomer = entry.customerId === actorId;
+    if (!isCustomer) await this.assertStaffAccess(actorId, entry.salonId);
+    if (!['waiting', 'notified', 'checked_in'].includes(entry.state)) {
+      throw new ConflictException(`Cannot mark arrived for entry in state ${entry.state}.`);
+    }
+
+    // Move to checked_in if not already there
+    const newState: EntryState = entry.state === 'checked_in' ? 'checked_in' : 'checked_in';
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const e = await tx.queueEntry.update({
+        where: { id: entryId },
+        data: { arrivedAt: new Date(), state: newState },
+        select: entrySelect,
+      });
+      await tx.queue.update({ where: { salonId: entry.salonId }, data: { queueVersion: { increment: 1 } } });
+      await tx.queueAudit.create({ data: { salonId: entry.salonId, entryId, actorId, action: 'arrived', before: { state: entry.state }, after: { state: newState, arrivedAt: new Date() } } });
+      return e;
+    });
+
+    const dto = this.toEntryDto(updated, await this.positionAhead(updated));
+    this.emitEntryAndSalon(updated, 'queue.entry.arrived', dto);
+    return dto;
+  }
+
+  /** Customer: report they are running late. */
+  async reportLate(customerId: string, entryId: string, input: LateReportInput): Promise<QueueEntryDto> {
+    const entry = await this.loadEntry(entryId);
+    if (entry.customerId !== customerId) throw new ForbiddenException('Not your queue entry.');
+    if (!['waiting', 'notified'].includes(entry.state)) {
+      throw new ConflictException(`Cannot report late for entry in state ${entry.state}.`);
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const e = await tx.queueEntry.update({
+        where: { id: entryId },
+        data: { lateMinutes: input.minutes, lateAckedAt: null, lateAction: null },
+        select: entrySelect,
+      });
+      // Post a salon announcement for the owner to see
+      await tx.salonAnnouncement.create({
+        data: {
+          salonId: entry.salonId,
+          actorId: customerId,
+          type: 'delay',
+          body: `Token #${entry.tokenNumber} reported running ${input.minutes} min late.`,
+          entryId,
+        },
+      });
+      await tx.queueAudit.create({ data: { salonId: entry.salonId, entryId, actorId: customerId, action: 'late_reported', before: {}, after: { lateMinutes: input.minutes } } });
+      return e;
+    });
+
+    const dto = this.toEntryDto(updated, await this.positionAhead(updated));
+    this.emitEntryAndSalon(updated, 'queue.entry.late_reported', dto);
+    return dto;
+  }
+
+  /** Owner/staff: respond to a late report. */
+  async respondLate(staffId: string, salonId: string, entryId: string, input: LateResponseInput): Promise<QueueEntryDto> {
+    await this.assertStaffAccess(staffId, salonId);
+    const entry = await this.loadEntry(entryId);
+    this.assertEntrySalon(entry, salonId);
+
+    if (input.action === 'skip') {
+      return this.transition(entry, 'no_show', staffId, 'late_skipped');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const e = await tx.queueEntry.update({
+        where: { id: entryId },
+        data: { lateAction: input.action, lateAckedAt: new Date() },
+        select: entrySelect,
+      });
+      await tx.queue.update({ where: { salonId }, data: { queueVersion: { increment: 1 } } });
+      await tx.queueAudit.create({ data: { salonId, entryId, actorId: staffId, action: `late_${input.action}`, before: {}, after: { lateAction: input.action } } });
+      return e;
+    });
+
+    const dto = this.toEntryDto(updated, await this.positionAhead(updated));
+    this.emitEntryAndSalon(updated, 'queue.entry.late_reported', dto);
+    return dto;
+  }
+
+  /** Customer or staff: change service on an active entry. */
+  async changeService(actorId: string, entryId: string, input: ChangeServiceInput): Promise<QueueEntryDto> {
+    const entry = await this.loadEntry(entryId);
+    const isCustomer = entry.customerId === actorId;
+    if (!isCustomer) await this.assertStaffAccess(actorId, entry.salonId);
+    if (!['waiting', 'notified', 'checked_in'].includes(entry.state)) {
+      throw new ConflictException(`Cannot change service for entry in state ${entry.state}.`);
+    }
+
+    const service = await this.prisma.service.findFirst({
+      where: { id: input.serviceId, salonId: entry.salonId, active: true },
+      select: { id: true, estimatedMinutes: true },
+    });
+    if (!service) throw new NotFoundException('Service not found or inactive.');
+
+    const now = new Date();
+    const slotStartAt = entry.slotStartAt ?? now;
+    const slotEndAt = new Date(slotStartAt.getTime() + service.estimatedMinutes * 60_000);
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const e = await tx.queueEntry.update({
+        where: { id: entryId },
+        data: { serviceId: input.serviceId, slotEndAt },
+        select: entrySelect,
+      });
+      await tx.queue.update({ where: { salonId: entry.salonId }, data: { queueVersion: { increment: 1 } } });
+      await tx.queueAudit.create({ data: { salonId: entry.salonId, entryId, actorId, action: 'service_changed', before: { serviceId: entry.serviceId }, after: { serviceId: input.serviceId } } });
+      return e;
+    });
+
+    const dto = this.toEntryDto(updated, await this.positionAhead(updated));
+    this.emitEntryAndSalon(updated, 'queue.entry.service_changed', dto);
+    return dto;
+  }
+
+  /** Staff: undo a recent completion (completed → in_service) within 5 minutes. */
+  async undoComplete(staffId: string, salonId: string, entryId: string): Promise<QueueEntryDto> {
+    await this.assertStaffAccess(staffId, salonId);
+    const entry = await this.loadEntry(entryId);
+    this.assertEntrySalon(entry, salonId);
+    if (entry.state !== 'completed') {
+      throw new ConflictException('Can only undo a completed entry.');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const e = await tx.queueEntry.update({
+        where: { id: entryId },
+        data: { state: 'in_service', completedAt: null },
+        select: entrySelect,
+      });
+      await tx.queue.update({ where: { salonId }, data: { queueVersion: { increment: 1 } } });
+      await tx.queueAudit.create({ data: { salonId, entryId, actorId: staffId, action: 'undo_complete', before: { state: 'completed' }, after: { state: 'in_service' } } });
+      return e;
+    });
+
+    const dto = this.toEntryDto(updated, null);
+    this.emitEntryAndSalon(updated, 'queue.entry.started', dto);
+    return dto;
+  }
+
+  /** Staff: open the queue (any state → open). */
+  async openQueue(staffId: string, salonId: string): Promise<{ status: PrismaQueueStatus }> {
+    await this.assertStaffAccess(staffId, salonId);
+    const queue = await this.prisma.queue.findUnique({ where: { salonId }, select: { status: true } });
+    if (!queue) throw new NotFoundException('Queue not found.');
+    await this.prisma.queue.update({ where: { salonId }, data: { status: 'open', queueVersion: { increment: 1 } } });
+    this.emitQueueControl(salonId, 'queue.opened');
+    await this.postAnnouncement(salonId, staffId, { type: 'reopened', body: 'Queue is now open.' });
+    return { status: 'open' };
+  }
+
+  /** Staff: set queue to limited (no new joins). */
+  async limitQueue(staffId: string, salonId: string): Promise<{ status: PrismaQueueStatus }> {
+    await this.assertStaffAccess(staffId, salonId);
+    const queue = await this.prisma.queue.findUnique({ where: { salonId }, select: { status: true } });
+    if (!queue) throw new NotFoundException('Queue not found.');
+    await this.prisma.queue.update({ where: { salonId }, data: { status: 'limited', queueVersion: { increment: 1 } } });
+    this.emitQueueControl(salonId, 'queue.limited');
+    await this.postAnnouncement(salonId, staffId, { type: 'paused', body: 'Walk-in rush: queue is limited. Existing customers are still in queue.' });
+    return { status: 'limited' };
+  }
+
+  /** Staff: post a manual announcement. */
+  async postAnnouncement(
+    salonId: string,
+    actorId: string,
+    input: AnnouncementInput,
+  ): Promise<SalonAnnouncementDto> {
+    const ann = await this.prisma.salonAnnouncement.create({
+      data: {
+        salonId,
+        actorId,
+        type: input.type ?? 'info',
+        body: input.body,
+        entryId: input.entryId ?? null,
+      },
+    });
+    this.emitQueueControl(salonId, 'queue.announcement');
+    return { id: ann.id, salonId: ann.salonId, type: ann.type, body: ann.body, createdAt: ann.createdAt.toISOString(), entryId: ann.entryId ?? null };
+  }
+
+  /** Customer or staff: list recent announcements for a salon. */
+  async listAnnouncements(salonId: string): Promise<SalonAnnouncementDto[]> {
+    const items = await this.prisma.salonAnnouncement.findMany({
+      where: { salonId },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+    return items.map((a) => ({ id: a.id, salonId: a.salonId, type: a.type, body: a.body, createdAt: a.createdAt.toISOString(), entryId: a.entryId ?? null }));
+  }
+
+  /** Staff: search queue entries by token, name, or phone. */
+  async searchQueue(staffId: string, salonId: string, q: string): Promise<StaffEntryRow[]> {
+    await this.assertStaffAccess(staffId, salonId);
+    const tokenNum = parseInt(q, 10);
+
+    const entries = await this.prisma.queueEntry.findMany({
+      where: {
+        salonId,
+        state: { in: ['waiting', 'notified', 'checked_in', 'in_service'] },
+        OR: [
+          ...(isNaN(tokenNum) ? [] : [{ tokenNumber: tokenNum }]),
+          { customer: { name: { contains: q, mode: 'insensitive' as const } } },
+          { customer: { phone: { contains: q } } },
+        ],
+      },
+      orderBy: { sequenceNo: 'asc' },
+      take: 20,
+      select: {
+        id: true,
+        tokenNumber: true,
+        sequenceNo: true,
+        state: true,
+        etaMinutes: true,
+        arrivedAt: true,
+        lateMinutes: true,
+        lateAction: true,
+        slotStartAt: true,
+        slotEndAt: true,
+        service: { select: { name: true, estimatedMinutes: true } },
+        chair: { select: { label: true } },
+        preferredStaff: { select: { user: { select: { name: true } } } },
+        customer: { select: { name: true, phone: true } },
+        createdAt: true,
+      },
+    });
+
+    return entries.map((e) => ({
+      id: e.id,
+      tokenNumber: e.tokenNumber,
+      serviceName: e.service.name,
+      serviceDurationMinutes: e.service.estimatedMinutes,
+      entryState: e.state as ContractEntryState,
+      etaMinutes: e.etaMinutes,
+      chairLabel: e.chair?.label ?? null,
+      customerName: e.customer?.name ?? null,
+      customerPhone: e.customer?.phone ?? null,
+      arrivedAt: e.arrivedAt?.toISOString() ?? null,
+      lateMinutes: e.lateMinutes ?? null,
+      lateAction: e.lateAction ?? null,
+      preferredStaffName: e.preferredStaff?.user?.name ?? null,
+      slotStartAt: e.slotStartAt?.toISOString() ?? null,
+      slotEndAt: e.slotEndAt?.toISOString() ?? null,
+      createdAt: e.createdAt.toISOString(),
+    }));
   }
 
   /** Staff: get authoritative queue snapshot for their salon. */
@@ -452,8 +753,15 @@ export class QueueService {
             sequenceNo: true,
             state: true,
             etaMinutes: true,
+            arrivedAt: true,
+            lateMinutes: true,
+            lateAction: true,
+            slotStartAt: true,
+            slotEndAt: true,
             service: { select: { name: true, estimatedMinutes: true } },
             chair: { select: { label: true } },
+            preferredStaff: { select: { user: { select: { name: true } } } },
+            customer: { select: { name: true, phone: true } },
             createdAt: true,
           },
         },
@@ -497,6 +805,14 @@ export class QueueService {
       entryState: e.state as ContractEntryState,
       etaMinutes: etaMap.get(e.id) ?? e.etaMinutes,
       chairLabel: e.chair?.label ?? null,
+      customerName: e.customer?.name ?? null,
+      customerPhone: e.customer?.phone ?? null,
+      arrivedAt: e.arrivedAt?.toISOString() ?? null,
+      lateMinutes: e.lateMinutes ?? null,
+      lateAction: e.lateAction ?? null,
+      preferredStaffName: e.preferredStaff?.user?.name ?? null,
+      slotStartAt: e.slotStartAt?.toISOString() ?? null,
+      slotEndAt: e.slotEndAt?.toISOString() ?? null,
       createdAt: e.createdAt.toISOString(),
     }));
 
@@ -604,25 +920,6 @@ export class QueueService {
     return result;
   }
 
-  private async setQueueStatus(
-    salonId: string,
-    expectedStatus: PrismaQueueStatus,
-    newStatus: PrismaQueueStatus,
-  ): Promise<void> {
-    const queue = await this.prisma.queue.findUnique({
-      where: { salonId },
-      select: { status: true },
-    });
-    if (!queue) throw new NotFoundException('Queue not found.');
-    if (queue.status !== expectedStatus) {
-      throw new ConflictException(`Queue is currently ${queue.status}, expected ${expectedStatus}.`);
-    }
-    await this.prisma.queue.update({
-      where: { salonId },
-      data: { status: newStatus, queueVersion: { increment: 1 } },
-    });
-  }
-
   private toEntryDto(entry: EntryWithRelations, positionAhead: number | null): QueueEntryDto {
     return {
       id: entry.id,
@@ -639,6 +936,12 @@ export class QueueService {
       queuePositionAhead: positionAhead,
       etaMinutes: entry.etaMinutes,
       chairLabel: entry.chair?.label ?? null,
+      arrivedAt: entry.arrivedAt?.toISOString() ?? null,
+      lateMinutes: entry.lateMinutes,
+      lateAction: entry.lateAction,
+      preferredStaffName: entry.preferredStaff?.user?.name ?? null,
+      slotStartAt: entry.slotStartAt?.toISOString() ?? null,
+      slotEndAt: entry.slotEndAt?.toISOString() ?? null,
       createdAt: entry.createdAt.toISOString(),
       queueVersion: entry.queue.queueVersion.toString(),
     };

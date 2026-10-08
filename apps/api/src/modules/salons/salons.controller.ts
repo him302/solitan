@@ -57,6 +57,13 @@ export class SalonsController {
     return this.salons.create(user, body);
   }
 
+  /** Public: active staff list for a salon (name + id). */
+  @Get(':salonId/staff')
+  @UseGuards(OptionalJwtAuthGuard)
+  staff(@Param('salonId', ParseUUIDPipe) salonId: string): Promise<{ id: string; name: string }[]> {
+    return this.salons.listStaff(salonId);
+  }
+
   /** Public salon detail (active salons). Optional lat/lng yields PostGIS distance. */
   @Get(':salonId')
   @UseGuards(OptionalJwtAuthGuard)

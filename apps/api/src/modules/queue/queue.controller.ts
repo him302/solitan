@@ -10,6 +10,8 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Patch,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
@@ -17,8 +19,16 @@ import { ApiTags } from '@nestjs/swagger';
 import {
   joinQueueSchema,
   staffActionSchema,
+  lateReportSchema,
+  lateResponseSchema,
+  changeServiceSchema,
+  announcementSchema,
   type JoinQueueInput,
   type StaffActionInput,
+  type LateReportInput,
+  type LateResponseInput,
+  type ChangeServiceInput,
+  type AnnouncementInput,
 } from '@soliton/api-contract';
 import { CurrentUser, type RequestUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -50,13 +60,13 @@ export class BookingsController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   create(
     @CurrentUser() user: RequestUser,
-    @Body() body: { salonId?: string; serviceId?: string },
+    @Body() body: { salonId?: string; serviceId?: string; preferredStaffId?: string },
     @Headers('idempotency-key') idempotencyKey?: string,
   ) {
     if (!body.salonId || !body.serviceId) {
       throw new BadRequestException('salonId and serviceId are required');
     }
-    return this.queue.joinQueue(user.id, body.salonId, body.serviceId, idempotencyKey);
+    return this.queue.joinQueue(user.id, body.salonId, body.serviceId, idempotencyKey, body.preferredStaffId);
   }
 
   @Get(':id')
@@ -106,7 +116,7 @@ export class QueueController {
     @Body(new ZodPipe(joinQueueSchema)) body: JoinQueueInput,
     @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    return this.queue.joinQueue(user.id, body.salonId, body.serviceId, idempotencyKey);
+    return this.queue.joinQueue(user.id, body.salonId, body.serviceId, idempotencyKey, body.preferredStaffId);
   }
 
   @Delete('entries/:entryId')
@@ -213,5 +223,109 @@ export class QueueController {
     @Param('salonId', ParseUUIDPipe) salonId: string,
   ) {
     return this.queue.closeQueue(user.id, salonId);
+  }
+
+  @Post(':salonId/open')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  open(
+    @CurrentUser() user: RequestUser,
+    @Param('salonId', ParseUUIDPipe) salonId: string,
+  ) {
+    return this.queue.openQueue(user.id, salonId);
+  }
+
+  @Post(':salonId/limited')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  limited(
+    @CurrentUser() user: RequestUser,
+    @Param('salonId', ParseUUIDPipe) salonId: string,
+  ) {
+    return this.queue.limitQueue(user.id, salonId);
+  }
+
+  @Post('entries/:entryId/arrive')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  async arrive(
+    @CurrentUser() user: RequestUser,
+    @Param('entryId', ParseUUIDPipe) entryId: string,
+  ) {
+    return this.queue.markArrived(user.id, entryId);
+  }
+
+  @Post('entries/:entryId/late')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  async reportLate(
+    @CurrentUser() user: RequestUser,
+    @Param('entryId', ParseUUIDPipe) entryId: string,
+    @Body(new ZodPipe(lateReportSchema)) body: LateReportInput,
+  ) {
+    return this.queue.reportLate(user.id, entryId, body);
+  }
+
+  @Post('entries/:entryId/late-response')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  async lateResponse(
+    @CurrentUser() user: RequestUser,
+    @Param('entryId', ParseUUIDPipe) entryId: string,
+    @Body(new ZodPipe(lateResponseSchema)) body: LateResponseInput,
+  ) {
+    const salonId = await resolveSalonId(this.prisma, entryId);
+    return this.queue.respondLate(user.id, salonId, entryId, body);
+  }
+
+  @Patch('entries/:entryId/service')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  async changeService(
+    @CurrentUser() user: RequestUser,
+    @Param('entryId', ParseUUIDPipe) entryId: string,
+    @Body(new ZodPipe(changeServiceSchema)) body: ChangeServiceInput,
+  ) {
+    return this.queue.changeService(user.id, entryId, body);
+  }
+
+  @Post('entries/:entryId/undo-complete')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  async undoComplete(
+    @CurrentUser() user: RequestUser,
+    @Param('entryId', ParseUUIDPipe) entryId: string,
+  ) {
+    const salonId = await resolveSalonId(this.prisma, entryId);
+    return this.queue.undoComplete(user.id, salonId, entryId);
+  }
+
+  @Get(':salonId/announcements')
+  @UseGuards(JwtAuthGuard)
+  async announcements(
+    @Param('salonId', ParseUUIDPipe) salonId: string,
+  ) {
+    return this.queue.listAnnouncements(salonId);
+  }
+
+  @Post(':salonId/announcements')
+  @UseGuards(JwtAuthGuard)
+  async postAnnouncement(
+    @CurrentUser() user: RequestUser,
+    @Param('salonId', ParseUUIDPipe) salonId: string,
+    @Body(new ZodPipe(announcementSchema)) body: AnnouncementInput,
+  ) {
+    return this.queue.postAnnouncement(salonId, user.id, body);
+  }
+
+  @Get(':salonId/search')
+  @UseGuards(JwtAuthGuard)
+  async searchQueue(
+    @CurrentUser() user: RequestUser,
+    @Param('salonId', ParseUUIDPipe) salonId: string,
+    @Query('q') q: string,
+  ) {
+    if (!q?.trim()) throw new BadRequestException('q is required');
+    return this.queue.searchQueue(user.id, salonId, q.trim());
   }
 }
