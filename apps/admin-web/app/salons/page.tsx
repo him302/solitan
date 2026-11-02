@@ -93,7 +93,7 @@ export default function AdminSalonsPage() {
               padding: '6px 14px', borderRadius: 20,
               border: '1px solid var(--color-line, #E9E3D6)', cursor: 'pointer',
               fontWeight: statusFilter === f.value ? 700 : 400,
-              backgroundColor: statusFilter === f.value ? 'var(--color-accent, #3B5BDB)' : 'transparent',
+              backgroundColor: statusFilter === f.value ? 'var(--color-accent, #A50000)' : 'transparent',
               color: statusFilter === f.value ? '#fff' : 'inherit', fontSize: 13,
             }}
           >{f.label}</button>

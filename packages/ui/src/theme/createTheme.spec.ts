@@ -1,9 +1,13 @@
-import { PLACEHOLDER_ACCENT } from '@soliton/design-tokens';
+import { BRAND_MAROON, BRAND_MAROON_DARK } from '@soliton/design-tokens';
 import { createTheme } from './createTheme';
 
 describe('createTheme', () => {
-  it('uses the neutral placeholder accent by default', () => {
-    expect(createTheme({ scheme: 'light' }).colors.accent).toBe(PLACEHOLDER_ACCENT);
+  it('uses Solitan Royal Maroon by default', () => {
+    expect(createTheme({ scheme: 'light' }).colors.accent).toBe(BRAND_MAROON);
+  });
+
+  it('uses the lightened maroon in dark mode, where Royal Maroon is unreadable', () => {
+    expect(createTheme({ scheme: 'dark' }).colors.accent).toBe(BRAND_MAROON_DARK);
   });
 
   it('applies a configured brand accent', () => {

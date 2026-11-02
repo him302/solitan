@@ -88,7 +88,7 @@ export default function AdminComplaintsPage() {
               border: '1px solid var(--color-line, #E9E3D6)',
               cursor: 'pointer',
               fontWeight: filter === f.value ? 700 : 400,
-              backgroundColor: filter === f.value ? 'var(--color-accent, #3B5BDB)' : 'transparent',
+              backgroundColor: filter === f.value ? 'var(--color-accent, #A50000)' : 'transparent',
               color: filter === f.value ? '#fff' : 'inherit',
             }}
           >

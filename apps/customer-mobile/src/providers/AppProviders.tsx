@@ -24,7 +24,11 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <ErrorBoundary>
       <I18nextProvider i18n={i18n}>
         <QueryClientProvider client={queryClient}>
-          <ThemeProvider scheme={scheme} accent="#A50000">
+          {/* Accent is intentionally not passed: @soliton/design-tokens defaults to
+              Solitan Royal Maroon, so every app and the admin web share one source of
+              truth. Passing it here previously left salon-mobile and admin-web on the
+              old neutral placeholder. */}
+          <ThemeProvider scheme={scheme}>
             <SafeAreaProvider>{children}</SafeAreaProvider>
           </ThemeProvider>
         </QueryClientProvider>

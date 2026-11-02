@@ -20,7 +20,7 @@ const STATUS_COLORS: Record<PaymentStatus, string> = {
   pending: '#9A5B00',
   paid: '#1F7A38',
   failed: '#B32430',
-  refunded: '#3B5BDB',
+  refunded: '#1F56C4', // design-tokens `info`
   cancelled: '#605E57',
 };
 
@@ -72,7 +72,7 @@ export default function AdminPaymentsPage() {
               border: '1px solid var(--color-line, #E9E3D6)',
               cursor: 'pointer',
               fontWeight: filter === f.value ? 700 : 400,
-              backgroundColor: filter === f.value ? 'var(--color-accent, #3B5BDB)' : 'transparent',
+              backgroundColor: filter === f.value ? 'var(--color-accent, #A50000)' : 'transparent',
               color: filter === f.value ? '#fff' : 'inherit',
             }}
           >

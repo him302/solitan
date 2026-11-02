@@ -89,12 +89,35 @@ Redis) cannot start. 18 tests in `auth.e2e-spec.ts`, `database.e2e-spec.ts` and
 `phase1.db.e2e-spec.ts` are permanently skipped. Nothing touching real SQL, migrations,
 PostGIS or concurrency is currently verifiable.
 
-### 2.3 Brand identity is split in two
+### 2.3 Three apps rendered in three different accent colours
 
-`splash.tsx:5` hardcodes `MAROON = '#A50000'`. `packages/design-tokens` deliberately ships
-a **neutral slate** accent: *"Placeholder accent used until the brand color is chosen…
-so no brand decision is implied"* — with a test asserting it is *not* locked to a brand
-colour. The splash is maroon; the entire rest of the app is grey.
+> **Corrected after a closer read.** This entry first claimed that only the splash was
+> maroon and the rest of the app was grey, and that dark mode was absent entirely. Both
+> were wrong — they came from grepping `ThemeProvider.tsx`, which is a four-line
+> re-export, instead of `AppProviders.tsx`, where the real wiring lives. The actual
+> defect is different, and wider.
+
+`packages/design-tokens` shipped a **neutral slate** accent (`PLACEHOLDER_ACCENT`,
+*"used until the brand color is chosen"*) with a test asserting it was *not* locked to any
+brand colour. Each app then resolved its accent differently:
+
+| App | Accent before | Why |
+|---|---|---|
+| `customer-mobile` | maroon `#A50000` | passed `accent="#A50000"` explicitly in `AppProviders.tsx:28` |
+| `salon-mobile` | slate `#4A4A4A` | `<ThemeProvider scheme={scheme}>` — no accent, so it fell through to the placeholder |
+| `admin-web` | slate `#4A4A4A` | `build-css.mjs` calls `generateTokensCss()` with no argument |
+
+So the owner app and the admin console were grey while the customer app was maroon. The
+`var(--color-accent, #3B5BDB)` blue fallbacks across five admin pages were dead code —
+`tokens.css` is imported in `layout.tsx:4`, so the variable was always defined.
+
+**Also a genuine accessibility defect:** dark mode applied the *same* `#A50000` to
+near-black surfaces, which measures **2.53:1** — far below the 4.5:1 floor.
+
+**Dark mode itself was already implemented** and this audit was wrong to list it as
+missing: `appStore.ts` persists `'system' | 'light' | 'dark'` through SecureStore,
+`AppProviders.tsx` resolves `'system'` against `useColorScheme()`, and
+`(tabs)/settings.tsx:96` exposes the control. What was missing was a readable dark accent.
 
 ### 2.4 Duplicate owner dashboard in two apps
 
@@ -154,7 +177,7 @@ only. Needs re-centring on queue-first.
 | 4 | **Staff app experience** (Part 8) | **Absent** | No staff-scoped UI. Staff are routed into the owner `(manage)` dashboard with full owner powers — a privilege problem, not just a UX gap. |
 | 5 | **Manual / walk-in customer add** (Part 7 #6) | **Absent** | `EntrySource.walkin` enum exists; no endpoint creates one. Owners cannot add an in-person customer. |
 | 6 | **Delay management** (Part 7 #11–12 + "Delay Management") | **Absent** | `QueueEntry.delayMinutes` exists in the DB; no controller route ever writes it. Owners cannot communicate a delay. |
-| 7 | **Dark mode** (Part 3) | **Absent** | `ThemeProvider.tsx` has no `dark`, `colorScheme` or `useColorScheme`. |
+| 7 | ~~Dark mode (Part 3)~~ | **Already present** | Audit error, corrected in section 2.3. Persisted in `appStore.ts`, resolved in `AppProviders.tsx`, toggled in `(tabs)/settings.tsx:96`. Only the dark-mode accent contrast needed fixing. |
 | 8 | **Business category / multi-vertical support** (Part 2) | **Absent** | `Salon` has no `category` field. Clinics, banks, restaurants etc. cannot be modelled or filtered. Discover has no category row. |
 | 9 | Salon description & public contact phone (Parts 6B, 7) | **Absent** | `Salon` has `name`, `address`, `city`, `photoUrl` — no `description`, no `phone`. |
 | 10 | Staff availability (Part 8) | **Partial** | `SalonStaff.active` only — no shift/availability model. |

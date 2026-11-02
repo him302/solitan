@@ -81,7 +81,7 @@ export default function DashboardPage() {
               border: '1px solid var(--color-line, #E9E3D6)',
               cursor: 'pointer',
               fontWeight: preset === p.value ? 700 : 400,
-              backgroundColor: preset === p.value ? 'var(--color-accent, #3B5BDB)' : 'transparent',
+              backgroundColor: preset === p.value ? 'var(--color-accent, #A50000)' : 'transparent',
               color: preset === p.value ? '#fff' : 'inherit',
               fontSize: 13,
             }}
@@ -160,7 +160,7 @@ const statCardStyle: React.CSSProperties = {
 function StatCard({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
   return (
     <div style={statCardStyle}>
-      <div style={{ fontSize: 26, fontWeight: 700, color: accent ? 'var(--color-accent, #3B5BDB)' : 'inherit' }}>
+      <div style={{ fontSize: 26, fontWeight: 700, color: accent ? 'var(--color-accent, #A50000)' : 'inherit' }}>
         {value.toLocaleString('en-IN')}
       </div>
       <div style={{ fontSize: 13, color: 'var(--color-ink-soft)', marginTop: 4 }}>{label}</div>

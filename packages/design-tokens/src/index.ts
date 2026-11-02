@@ -5,8 +5,9 @@
  *  - React Native (mobile) via the typed theme (see @soliton/ui `createTheme`)
  *  - Web (admin) via generated CSS variables (see `./css`)
  *
- * The brand accent is a configurable slot — no brand color (teal or otherwise) is
- * hardcoded. Status is conveyed by color + icon + label in components, never color alone.
+ * The brand accent defaults to Solitan Royal Maroon and stays a configurable slot, so a
+ * white-label deployment can override it without forking the system. Status is conveyed by
+ * color + icon + label in components, never color alone.
  */
 
 export type ColorScheme = 'light' | 'dark';
@@ -18,8 +19,9 @@ export interface SemanticColors {
   readonly ink: string;
   readonly inkSoft: string;
   readonly line: string;
-  /** Configurable primary brand accent (TBD — injected, never hardcoded). */
+  /** Primary brand accent. Defaults to {@link BRAND_MAROON}; overridable per deployment. */
   readonly accent: string;
+  /** Text/icon color that sits *on* the accent. Scheme-dependent — see {@link createColorTokens}. */
   readonly accentInk: string;
   /** Restrained emotional accents. */
   readonly peach: string;
@@ -32,14 +34,38 @@ export interface SemanticColors {
 }
 
 /**
- * Placeholder accent used until the brand color is chosen. Deliberately a neutral
- * slate so no brand decision is implied. Replace via {@link createColorTokens}.
+ * Solitan Royal Maroon — the primary brand color. 8.08:1 against white and 7.62:1 against
+ * the light background, so it is safe for body text, icons and filled buttons in light mode.
+ */
+export const BRAND_MAROON = '#A50000';
+
+/** Secondary brand color. */
+export const BRAND_WHITE = '#FFFFFF';
+
+/**
+ * Dark-mode accent. Royal Maroon is too dark to read on dark surfaces — it manages only
+ * 2.53:1 against the dark background, well under the 4.5:1 floor — so dark mode uses a
+ * lightened maroon at 6.18:1. Same hue family, legible on near-black.
+ */
+export const BRAND_MAROON_DARK = '#E8616B';
+
+/**
+ * @deprecated Retained so existing imports keep compiling. The brand color is now chosen
+ * ({@link BRAND_MAROON}); this neutral slate is no longer the default.
  */
 export const PLACEHOLDER_ACCENT = '#4A4A4A';
 
-/** Warm/white neutral base + dark readable text, per the approved direction. */
+/**
+ * Warm/white neutral base + dark readable text, per the approved direction.
+ *
+ * `accent` overrides the light-mode brand color. `darkAccent` overrides the dark-mode one;
+ * when omitted it falls back to the light accent, so a caller supplying a single custom
+ * color still gets a working (if possibly lower-contrast) dark palette rather than a
+ * silent mix of someone else's brand with ours.
+ */
 export function createColorTokens(
-  accent: string = PLACEHOLDER_ACCENT,
+  accent: string = BRAND_MAROON,
+  darkAccent: string = accent === BRAND_MAROON ? BRAND_MAROON_DARK : accent,
 ): Record<ColorScheme, SemanticColors> {
   return {
     light: {
@@ -50,7 +76,8 @@ export function createColorTokens(
       inkSoft: '#605E57',
       line: '#E9E3D6',
       accent,
-      accentInk: '#FFFFFF',
+      // White on Royal Maroon = 8.08:1.
+      accentInk: BRAND_WHITE,
       peach: '#FFB59E',
       warmYellow: '#F7C65B',
       success: '#1F7A38',
@@ -65,8 +92,10 @@ export function createColorTokens(
       ink: '#FAF0F2',
       inkSoft: '#C9A4AE',
       line: '#3A0F1E',
-      accent,
-      accentInk: '#FFFFFF',
+      accent: darkAccent,
+      // Dark ink on the lightened maroon = 5.05:1. White would be only 3.31:1, which fails
+      // for button labels, so the ink flips rather than the accent being darkened further.
+      accentInk: '#1E1E1C',
       peach: '#E8997F',
       warmYellow: '#E6B34A',
       success: '#55D07E',

@@ -2,7 +2,7 @@
   "name": "soliton",
   "version": "0.0.0",
   "private": true,
-  "description": "Soliton — real-time queue and capacity-management platform for neighbourhood salons (monorepo).",
+  "description": "Soliton \u2014 real-time queue and capacity-management platform for neighbourhood salons (monorepo).",
   "packageManager": "pnpm@9.15.9",
   "engines": {
     "node": ">=20"
@@ -15,10 +15,14 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "turbo run test",
-    "postinstall": "node scripts/fix-styled-jsx-react.cjs"
+    "test": "turbo run test"
   },
-  "pnpm": {},
+  "pnpm": {
+    "overrides": {
+      "@types/react": "19.2.3",
+      "@types/react-dom": "19.2.3"
+    }
+  },
   "devDependencies": {
     "@soliton/config": "workspace:*",
     "eslint": "^9.15.0",

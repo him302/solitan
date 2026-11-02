@@ -9,7 +9,17 @@ export const metadata: Metadata = {
   description: 'Soliton platform management dashboard.',
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+// Props are declared structurally rather than via Next's generated global
+// `LayoutProps<'/'>`. That global only exists once `next build` has written
+// .next/types, so depending on it would make `pnpm typecheck` fail on a clean clone
+// where nothing has been built yet. Next 15 made `params` a promise; this layout has
+// no dynamic segments and does not read it, but the shape has to admit it.
+interface RootLayoutProps {
+  children: ReactNode;
+  params?: Promise<Record<string, never>>;
+}
+
+export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en">
       <body>
