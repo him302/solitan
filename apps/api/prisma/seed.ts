@@ -220,6 +220,15 @@ async function main(): Promise<void> {
       },
     });
 
+    // Location. Prisma cannot write `geography`, so the point goes in through raw SQL.
+    // PostGIS takes (X, Y) = (longitude, latitude) — the reverse of the conversational
+    // "lat, lng" order. Without this every seeded salon has geom = NULL and discovery,
+    // which filters on `geom IS NOT NULL`, returns nothing at all.
+    await prisma.$executeRaw`
+      UPDATE "salons"
+      SET "geom" = ST_SetSRID(ST_MakePoint(${salon.coords.lon}, ${salon.coords.lat}), 4326)::geography
+      WHERE "id" = ${salon.id}::uuid`;
+
     // INV-OWNER: owner must have an active SalonStaff(owner) row.
     await prisma.salonStaff.upsert({
       where: { id: salon.ownerStaffId },

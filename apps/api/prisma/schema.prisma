@@ -3,12 +3,14 @@
 // + reviews rating CHECK are manually managed in the migration (see prisma/README.md).
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 // ---------------- enums ----------------
@@ -141,6 +143,12 @@ model Salon {
   averageRating Float?
   reviewCount   Int                                    @default(0)
   bufferConfig     Json?
+  /// PostGIS point (lon, lat / SRID 4326). Prisma cannot read or write `geography`, so
+  /// this column is accessed exclusively through the raw SQL in `salon-geo.ts` and
+  /// `discovery.sql.ts`. It is declared here so Prisma preserves it instead of
+  /// generating a DROP COLUMN on the next migration. Its GIST index is managed by hand
+  /// in the migration SQL — see prisma/README.md.
+  geom             Unsupported("geography(Point, 4326)")?
   noShowPolicy     String?  @default("none")
   noShowThreshold  Int      @default(2)
   photoUrl         String?

@@ -48,14 +48,28 @@ layer.
 
 ## Manually-managed database objects (drift handling)
 
-Three objects are not expressible in `schema.prisma` and live in the migration SQL:
+Four objects are not expressible in `schema.prisma` and live in the migration SQL:
 
-1. `CREATE EXTENSION IF NOT EXISTS "postgis"` — emitted first (before the `geography`
-   column). The extension is also declared in the datasource (`extensions = [postgis]`,
-   `postgresqlExtensions` preview) so Prisma manages/keeps it.
-2. `CREATE INDEX ... USING GIST ("geom")` — a GIST index on the `Unsupported`
-   `geography` column.
-3. `ALTER TABLE "reviews" ADD CONSTRAINT "reviews_rating_check" CHECK (rating >= 1 AND rating <= 5)`.
+1. `CREATE EXTENSION IF NOT EXISTS "postgis"` — emitted before the `geography` column that
+   depends on it. Also declared in the datasource (`extensions = [postgis]`,
+   `postgresqlExtensions` preview) so Prisma manages and keeps it.
+   Added in `20261102000000_postgis_geom`.
+2. `ALTER TABLE "salons" ADD COLUMN "geom" geography(Point, 4326)` — the column every
+   geospatial query in `salon-geo.ts` and `discovery.sql.ts` reads and writes.
+   Added in `20261102000000_postgis_geom`.
+3. `CREATE INDEX ... USING GIST ("geom")` — a GIST index on the `Unsupported`
+   `geography` column. Added in `20261102000000_postgis_geom`.
+4. `ALTER TABLE "reviews" ADD CONSTRAINT "reviews_rating_check" CHECK (rating >= 1 AND rating <= 5)`
+   — present since `20260101000000_init` (line 464).
+
+> **Historical note.** Items 1–3 were described in this file as committed long before they
+> existed: there was no `postgis` extension, no `geom` column and no GIST index in any
+> migration, the datasource declared no `extensions`, and `schema.prisma` declared no
+> `geom` field. Discovery therefore failed at the SQL level on every fresh database, and
+> `seed.ts` compounded it by never writing the coordinates it already defined, leaving
+> `geom` NULL even where the column existed. Both halves were fixed in
+> `20261102000000_postgis_geom` and the accompanying seed change. Treat this section as a
+> description of the migrations named above, not as a statement of intent.
 
 How drift is prevented:
 
