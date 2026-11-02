@@ -7,8 +7,9 @@ export default function RootLayout() {
     <AppProviders>
       <StatusBar style="auto" />
       <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+        {/* "index" is the opening animation as well as the entry route — there is no
+            separate splash screen to keep in sync with it. */}
         <Stack.Screen name="index" />
-        <Stack.Screen name="splash" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="login" />
         <Stack.Screen name="location-permission" />
