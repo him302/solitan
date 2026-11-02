@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  AddWalkInInput,
   AnnouncementInput,
+  ApplyDelayInput,
+  ApplyDelayResultDto,
   ChangeServiceInput,
   LateReportInput,
   LateResponseInput,
@@ -180,6 +183,44 @@ export function useSetCapacity(salonId: string | undefined) {
   const { invalidate } = useEntryAction(salonId);
   return useMutation<{ maxCapacity: number | null }, Error, SetCapacityInput>({
     mutationFn: (input) => api.queue.setCapacity(salonId!, input),
+    onSuccess: invalidate,
+  });
+}
+
+/**
+ * Adding a customer who is at the counter (Part 7 #6). Invalidating through
+ * `useEntryAction` also refreshes the snapshot, so the new token and everyone else's
+ * shifted position appear together.
+ */
+export function useAddWalkIn(salonId: string | undefined) {
+  const { invalidate } = useEntryAction(salonId);
+  return useMutation<QueueEntryDto, Error, AddWalkInInput>({
+    mutationFn: (input) => api.queue.addWalkIn(salonId!, input),
+    onSuccess: invalidate,
+  });
+}
+
+/**
+ * Telling waiting customers the queue is running late (Part 7 #11-12). Announcements are
+ * invalidated as well as the queue, because applying a delay posts one carrying the reason.
+ */
+export function useApplyDelay(salonId: string | undefined) {
+  const queryClient = useQueryClient();
+  const { invalidate } = useEntryAction(salonId);
+  return useMutation<ApplyDelayResultDto, Error, ApplyDelayInput>({
+    mutationFn: (input) => api.queue.applyDelay(salonId!, input),
+    onSuccess: () => {
+      invalidate();
+      void queryClient.invalidateQueries({ queryKey: ['announcements', salonId] });
+    },
+  });
+}
+
+/** Removing an entry for a customer who cancelled. Not a no-show — see the API. */
+export function useCancelAsStaff(salonId: string | undefined) {
+  const { invalidate } = useEntryAction(salonId);
+  return useMutation<QueueEntryDto, Error, string>({
+    mutationFn: (entryId) => api.queue.cancelAsStaff(salonId!, entryId),
     onSuccess: invalidate,
   });
 }

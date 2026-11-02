@@ -31,7 +31,11 @@ import {
   useAnnouncements,
   useSetCapacity,
   useSetNoShowPolicy,
+  useAddWalkIn,
+  useApplyDelay,
+  useCancelAsStaff,
 } from '../../src/hooks/useQueue';
+import { useSalonServices } from '../../src/hooks/useServices';
 
 type QueueStatus = 'open' | 'limited' | 'paused' | 'closed';
 
@@ -62,6 +66,12 @@ export default function QueueScreen() {
   const [showAnnounceBox, setShowAnnounceBox] = useState(false);
   const [showCapacityBox, setShowCapacityBox] = useState(false);
   const [capacityInput, setCapacityInput] = useState('');
+  const [showWalkInBox, setShowWalkInBox] = useState(false);
+  const [walkInName, setWalkInName] = useState('');
+  const [walkInPhone, setWalkInPhone] = useState('');
+  const [walkInServiceId, setWalkInServiceId] = useState<string | null>(null);
+  const [showDelayBox, setShowDelayBox] = useState(false);
+  const [delayReason, setDelayReason] = useState('');
 
   const { data: salon, isLoading: salonLoading } = useMySalon();
   const salonId = salon?.id;
@@ -84,6 +94,11 @@ export default function QueueScreen() {
   const postAnnounce  = usePostAnnouncement(salonId);
   const search        = useQueueSearch(salonId);
   const setCapacity   = useSetCapacity(salonId);
+  const addWalkIn     = useAddWalkIn(salonId);
+  const applyDelay    = useApplyDelay(salonId);
+  const cancelEntry   = useCancelAsStaff(salonId);
+  const { data: services = [] } = useSalonServices(salonId);
+  const activeServices = services.filter((svc) => svc.active);
   const _setNoShowPol  = useSetNoShowPolicy(salonId);
 
   const isLoading = salonLoading || (queueLoading && !queue);
@@ -170,9 +185,188 @@ export default function QueueScreen() {
         {queueStatus !== 'closed' && (
           <ActionButton label="Close Queue"   color={theme.colors.danger}  onPress={() => confirmAction('Close queue for the day?', () => void close.mutateAsync())} loading={close.isPending}  theme={theme} />
         )}
+        {(queueStatus === 'open' || queueStatus === 'limited') && (
+          <ActionButton label="Add Walk-in"   color={theme.colors.accent}  onPress={() => setShowWalkInBox(!showWalkInBox)} loading={false} theme={theme} />
+        )}
+        {(queueStatus === 'open' || queueStatus === 'limited') && (
+          <ActionButton label="Running Late"  color={theme.colors.warning} onPress={() => setShowDelayBox(!showDelayBox)} loading={false} theme={theme} />
+        )}
         <ActionButton label="Announce"        color={theme.colors.inkSoft} onPress={() => setShowAnnounceBox(!showAnnounceBox)} loading={false} theme={theme} />
         <ActionButton label="Capacity"        color={theme.colors.inkSoft} onPress={() => setShowCapacityBox(!showCapacityBox)} loading={false} theme={theme} />
       </View>
+
+      {/* Walk-in panel — Part 7 #6. A customer at the counter, with no app. */}
+      {showWalkInBox && (
+        <Card>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: theme.colors.ink, marginBottom: 4 }}>
+            Add Walk-in Customer
+          </Text>
+          <Text style={{ fontSize: 12, color: theme.colors.inkSoft, marginBottom: 8 }}>
+            They get the next token straight away. A phone number is optional — if they
+            already use Solitan, they will see this token in their own app.
+          </Text>
+
+          <TextInput
+            value={walkInName}
+            onChangeText={setWalkInName}
+            placeholder="Customer name"
+            placeholderTextColor={theme.colors.inkSoft}
+            style={{ borderWidth: 1, borderColor: theme.colors.line, borderRadius: 8, padding: 10, color: theme.colors.ink, fontSize: 14 }}
+          />
+          <TextInput
+            value={walkInPhone}
+            onChangeText={setWalkInPhone}
+            placeholder="Phone (optional)"
+            placeholderTextColor={theme.colors.inkSoft}
+            keyboardType="phone-pad"
+            style={{ borderWidth: 1, borderColor: theme.colors.line, borderRadius: 8, padding: 10, color: theme.colors.ink, fontSize: 14, marginTop: 8 }}
+          />
+
+          <Text style={{ fontSize: 12, color: theme.colors.inkSoft, marginTop: 10, marginBottom: 6 }}>
+            Service
+          </Text>
+          {activeServices.length === 0 ? (
+            <Text style={{ fontSize: 13, color: theme.colors.warning }}>
+              Add a service first — a token needs to know what is being done.
+            </Text>
+          ) : (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+              {activeServices.map((svc) => {
+                const selected = walkInServiceId === svc.id;
+                return (
+                  <Pressable
+                    key={svc.id}
+                    onPress={() => setWalkInServiceId(svc.id)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: selected ? theme.colors.accent : theme.colors.line,
+                      backgroundColor: selected ? theme.colors.accent : 'transparent',
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, color: selected ? theme.colors.accentInk : theme.colors.ink }}>
+                      {svc.name} · {svc.estimatedMinutes}m
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+
+          <Pressable
+            onPress={async () => {
+              if (!walkInName.trim() || !walkInServiceId) return;
+              const addedName = walkInName.trim();
+              const result = await addWalkIn
+                .mutateAsync({
+                  serviceId: walkInServiceId,
+                  name: walkInName.trim(),
+                  phone: walkInPhone.trim() || undefined,
+                })
+                .catch((error: Error) => {
+                  Alert.alert('Could not add walk-in', error.message || 'Please try again.');
+                  return null;
+                });
+              if (!result) return;
+              setWalkInName('');
+              setWalkInPhone('');
+              setWalkInServiceId(null);
+              setShowWalkInBox(false);
+              Alert.alert('Added', `${addedName} has token #${result.tokenNumber}.`);
+            }}
+            disabled={addWalkIn.isPending || !walkInName.trim() || !walkInServiceId}
+            style={{
+              marginTop: 10,
+              backgroundColor: theme.colors.accent,
+              borderRadius: 8,
+              paddingVertical: 8,
+              alignItems: 'center',
+              opacity: addWalkIn.isPending || !walkInName.trim() || !walkInServiceId ? 0.5 : 1,
+            }}
+          >
+            <Text style={{ color: theme.colors.accentInk, fontWeight: '600' }}>
+              {addWalkIn.isPending ? 'Adding…' : 'Add to queue'}
+            </Text>
+          </Pressable>
+        </Card>
+      )}
+
+      {/* Delay panel — Part 7 #11-12. */}
+      {showDelayBox && (
+        <Card>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: theme.colors.ink, marginBottom: 4 }}>
+            Running Late
+          </Text>
+          <Text style={{ fontSize: 12, color: theme.colors.inkSoft, marginBottom: 8 }}>
+            Everybody still waiting gets a longer estimate, and sees why. Tap twice to add
+            twice.
+          </Text>
+
+          <TextInput
+            value={delayReason}
+            onChangeText={setDelayReason}
+            placeholder="Reason (optional) — e.g. a service is taking longer"
+            placeholderTextColor={theme.colors.inkSoft}
+            style={{ borderWidth: 1, borderColor: theme.colors.line, borderRadius: 8, padding: 10, color: theme.colors.ink, fontSize: 14 }}
+          />
+
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+            {[5, 10, 15, 30].map((minutes) => (
+              <Pressable
+                key={minutes}
+                onPress={async () => {
+                  const result = await applyDelay
+                    .mutateAsync({ delayMinutes: minutes, reason: delayReason.trim() || undefined })
+                    .catch((error: Error) => {
+                      Alert.alert('Could not apply delay', error.message || 'Please try again.');
+                      return null;
+                    });
+                  if (!result) return;
+                  setDelayReason('');
+                  setShowDelayBox(false);
+                  Alert.alert(
+                    result.affected === 0 ? 'Nobody waiting' : 'Customers told',
+                    result.affected === 0
+                      ? 'There is nobody in the queue to notify.'
+                      : `${result.affected} waiting ${result.affected === 1 ? 'customer' : 'customers'} notified.`,
+                  );
+                }}
+                disabled={applyDelay.isPending}
+                style={{
+                  flex: 1,
+                  borderWidth: 1,
+                  borderColor: theme.colors.warning,
+                  borderRadius: 8,
+                  paddingVertical: 8,
+                  alignItems: 'center',
+                  opacity: applyDelay.isPending ? 0.5 : 1,
+                }}
+              >
+                <Text style={{ color: theme.colors.warning, fontWeight: '700' }}>+{minutes}m</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Taking back an over-estimate, so an owner is not stuck with a delay they
+              entered by mistake. */}
+          <Pressable
+            onPress={async () => {
+              await applyDelay.mutateAsync({ delayMinutes: -5 }).catch(() => null);
+              setShowDelayBox(false);
+            }}
+            disabled={applyDelay.isPending}
+            style={{ marginTop: 8, alignItems: 'center', paddingVertical: 6 }}
+          >
+            <Text style={{ color: theme.colors.inkSoft, fontSize: 13 }}>
+              Caught up a little — take back 5 minutes
+            </Text>
+          </Pressable>
+        </Card>
+      )}
 
       {/* Announce panel — scenario 3 */}
       {showAnnounceBox && (
@@ -275,6 +469,8 @@ export default function QueueScreen() {
               entry={entry}
               onComplete={entry.entryState === 'in_service' ? () => void complete.mutateAsync(entry.id) : undefined}
               onNoShow={['waiting','notified','checked_in'].includes(entry.entryState) ? () => confirmAction('Mark as no-show?', () => void noShow.mutateAsync(entry.id)) : undefined}
+              onCancel={['waiting','notified','checked_in'].includes(entry.entryState) ? () => confirmAction('Remove this customer from the queue? This is not recorded as a no-show.', () => void cancelEntry.mutateAsync(entry.id)) : undefined}
+              isCancelPending={cancelEntry.isPending}
               onUndoComplete={entry.entryState === 'completed' ? () => void undoComplete.mutateAsync(entry.id) : undefined}
               isCompletePending={complete.isPending}
               isNoShowPending={noShow.isPending}
@@ -427,9 +623,10 @@ function SmallAction({ label, color, onPress, loading, theme }: { label: string;
 
 function EntryCard({
   entry,
-  onNotify, onCheckIn, onStart, onComplete, onNoShow, onUndoComplete,
+  onNotify, onCheckIn, onStart, onComplete, onNoShow, onUndoComplete, onCancel,
   isNotifyPending = false, isCheckInPending = false, isStartPending = false,
   isCompletePending = false, isNoShowPending = false, isUndoPending = false,
+  isCancelPending = false,
   theme,
 }: {
   entry: StaffEntryRow;
@@ -439,12 +636,15 @@ function EntryCard({
   onComplete?: () => void;
   onNoShow?: () => void;
   onUndoComplete?: () => void;
+  /** Removing an entry for a customer who cancelled. Not a no-show. */
+  onCancel?: () => void;
   isNotifyPending?: boolean;
   isCheckInPending?: boolean;
   isStartPending?: boolean;
   isCompletePending?: boolean;
   isNoShowPending?: boolean;
   isUndoPending?: boolean;
+  isCancelPending?: boolean;
   theme: ReturnType<typeof useTheme>;
 }) {
   const stateColor = entryStateColor(entry.entryState, theme.colors);
@@ -500,6 +700,7 @@ function EntryCard({
         {onComplete   && <SmallAction label="Complete"     color={theme.colors.success} onPress={onComplete}   loading={isCompletePending} theme={theme} />}
         {onUndoComplete && <SmallAction label="Undo"       color={theme.colors.warning} onPress={onUndoComplete} loading={isUndoPending}   theme={theme} />}
         {onNoShow     && <SmallAction label="No Show"      color={theme.colors.danger}  onPress={onNoShow}     loading={isNoShowPending}   theme={theme} />}
+        {onCancel     && <SmallAction label="Cancelled"    color={theme.colors.inkSoft} onPress={onCancel}     loading={isCancelPending}   theme={theme} />}
       </View>
     </Card>
   );
