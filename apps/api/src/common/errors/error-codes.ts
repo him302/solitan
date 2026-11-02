@@ -1,4 +1,4 @@
-import { DomainErrorCode } from '@soliton/api-contract';
+import { DomainErrorCode, StaffErrorCode } from '@soliton/api-contract';
 
 /**
  * Stable error-code vocabulary: generic HTTP-level codes plus the domain codes shared
@@ -12,6 +12,7 @@ export const ErrorCode = {
   FORBIDDEN: 'FORBIDDEN',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
   ...DomainErrorCode,
+  ...StaffErrorCode,
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];

@@ -180,7 +180,13 @@ model SalonStaff {
   userId    String    @db.Uuid
   user      User      @relation(fields: [userId], references: [id])
   role      SalonRole @default(staff)
+  /// Employment status at this salon. Soft-delete flag: false keeps served queue history
+  /// and audit rows valid instead of deleting the membership.
   active    Boolean   @default(true)
+  /// Whether this member is currently working and can take customers. Distinct from
+  /// `active`: an employed member who has gone home is active but not on shift. The ETA
+  /// engine and next-customer assignment count only on-shift staff.
+  onShift   Boolean   @default(false)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

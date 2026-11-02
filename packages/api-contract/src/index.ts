@@ -161,3 +161,6 @@ export * from './payment';
 
 // ---------------- Phase 6: analytics ----------------
 export * from './analytics';
+
+// ---------------- staff management ----------------
+export * from './staff';

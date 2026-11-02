@@ -60,6 +60,12 @@ import type {
   UpdateReviewInput,
   UpdateSalonInput,
   UpdateServiceInput,
+  AddStaffInput,
+  PublicStaffDto,
+  SetStaffServicesInput,
+  StaffListDto,
+  StaffMemberDto,
+  UpdateStaffInput,
 } from '@soliton/api-contract';
 import { HttpClient, type HttpClientConfig } from './http';
 
@@ -121,7 +127,7 @@ export function createSolitonApi(config: HttpClientConfig) {
       detail: (id: string, viewer?: Location) =>
         http.get<SalonDetailDto>(`/salons/${id}`, viewerQuery(viewer)),
       hours: (id: string) => http.get<OperatingHoursDto>(`/salons/${id}/hours`),
-      staff: (id: string) => http.get<{ id: string; name: string }[]>(`/salons/${id}/staff`),
+      staff: (id: string) => http.get<PublicStaffDto[]>(`/salons/${id}/staff`),
       mine: () => http.get<MySalonDto>('/me/salon'),
       create: (input: CreateSalonInput) => http.post<MySalonDto>('/salons', input),
       update: (id: string, input: UpdateSalonInput) =>
@@ -137,6 +143,23 @@ export function createSolitonApi(config: HttpClientConfig) {
         http.patch<ServiceDto>(`/salons/${salonId}/services/${serviceId}`, input),
       deactivate: (salonId: string, serviceId: string) =>
         http.delete<ServiceDto>(`/salons/${salonId}/services/${serviceId}`),
+    },
+    /** Owner-facing staff management (Part 8). The public roster lives on `salons.staff`. */
+    staff: {
+      list: (salonId: string) => http.get<StaffListDto>(`/salons/${salonId}/staff/manage`),
+      get: (salonId: string, staffId: string) =>
+        http.get<StaffMemberDto>(`/salons/${salonId}/staff/${staffId}`),
+      add: (salonId: string, input: AddStaffInput) =>
+        http.post<StaffMemberDto>(`/salons/${salonId}/staff`, input),
+      update: (salonId: string, staffId: string, input: UpdateStaffInput) =>
+        http.patch<StaffMemberDto>(`/salons/${salonId}/staff/${staffId}`, input),
+      setServices: (salonId: string, staffId: string, input: SetStaffServicesInput) =>
+        http.put<StaffMemberDto>(`/salons/${salonId}/staff/${staffId}/services`, input),
+      remove: (salonId: string, staffId: string) =>
+        http.delete<StaffMemberDto>(`/salons/${salonId}/staff/${staffId}`),
+      /** A staff member clocking themselves on or off. Takes no id by design. */
+      setOwnShift: (onShift: boolean) =>
+        http.patch<StaffMemberDto>('/me/shift', { onShift }),
     },
     maps: {
       geocode: (address: string) => http.get<GeocodeResponse>('/maps/geocode', { address }),

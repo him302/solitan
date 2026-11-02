@@ -4,7 +4,17 @@ type Fn = jest.Mock;
 
 export interface PrismaMock {
   salon: { findUnique: Fn; findFirst: Fn; create: Fn; update: Fn };
-  salonStaff: { findFirst: Fn; create: Fn };
+  salonStaff: {
+    findFirst: Fn;
+    findUnique: Fn;
+    findMany: Fn;
+    create: Fn;
+    update: Fn;
+    count: Fn;
+  };
+  user: { findUnique: Fn; create: Fn; update: Fn };
+  staffService: { deleteMany: Fn; createMany: Fn };
+  queueEntry: { findMany: Fn; groupBy: Fn };
   queue: { create: Fn };
   operatingHours: { findMany: Fn; deleteMany: Fn; createMany: Fn };
   service: { findMany: Fn; findFirst: Fn; create: Fn; update: Fn };
@@ -18,7 +28,20 @@ export interface PrismaMock {
 export function createPrismaMock(): PrismaMock {
   const mock: PrismaMock = {
     salon: { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
-    salonStaff: { findFirst: jest.fn(), create: jest.fn() },
+    salonStaff: {
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn(),
+      update: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
+    },
+    user: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
+    staffService: { deleteMany: jest.fn(), createMany: jest.fn() },
+    queueEntry: {
+      findMany: jest.fn().mockResolvedValue([]),
+      groupBy: jest.fn().mockResolvedValue([]),
+    },
     queue: { create: jest.fn() },
     operatingHours: {
       findMany: jest.fn().mockResolvedValue([]),
