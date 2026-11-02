@@ -261,6 +261,12 @@ export interface DiscoverySalonDto extends PublicSalonDto {
 /** The signed-in owner/staff member's own salon (includes configuration). */
 export interface MySalonDto extends PublicSalonDto {
   viewerRole: 'owner' | 'staff' | 'admin';
+  /**
+   * Whether the signed-in member is currently on shift. Null for an admin, who has no
+   * membership row. Included here so a staff member can see and toggle their own
+   * availability without the owner-only roster endpoint.
+   */
+  viewerOnShift: boolean | null;
   queueStatus: QueueStatus;
   bufferConfig: BufferConfig | null;
   hoursConfigured: boolean;

@@ -1,9 +1,10 @@
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTheme, Card, Status, LoadingState, ErrorState, Button } from '@soliton/ui';
 import { useMySalon } from '../../src/hooks/useMySalon';
 import { useSalonOverview } from '../../src/hooks/useReporting';
+import { useSetOwnShift } from '../../src/hooks/useStaff';
 import { useAuthStore } from '../../src/auth/authStore';
 
 export default function DashboardScreen() {
@@ -14,7 +15,12 @@ export default function DashboardScreen() {
   const user = useAuthStore((s) => s.user);
 
   const { data: salon, isLoading, isError, refetch } = useMySalon();
-  const { data: overview } = useSalonOverview(salon?.id ?? null, 'today');
+
+  const isOwner = salon?.viewerRole === 'owner' || salon?.viewerRole === 'admin';
+
+  // Salon-wide takings and ratings are owner information. Passing null for staff also
+  // avoids firing a request the server would refuse.
+  const { data: overview } = useSalonOverview(isOwner ? salon?.id ?? null : null, 'today');
 
   if (isLoading) return <LoadingState label="Loading…" />;
   if (isError || !salon) {
@@ -96,6 +102,8 @@ export default function DashboardScreen() {
           </Pressable>
         )}
 
+        {salon.viewerOnShift !== null && <ShiftCard onShift={salon.viewerOnShift} />}
+
         {overview && (
           <View style={{ gap: theme.spacing.s3 }}>
             <Text style={{ fontSize: theme.type.label.size, fontWeight: theme.type.label.weight, color: theme.colors.ink }}>
@@ -123,10 +131,17 @@ export default function DashboardScreen() {
         )}
 
         <View style={{ gap: theme.spacing.s3 }}>
-          <DashboardLink label="Edit Profile"  emoji="✏️" onPress={() => router.push('/(manage)/profile')} />
-          <DashboardLink label="Services"      emoji="💈" onPress={() => router.push('/(manage)/services')} />
-          <DashboardLink label="Hours"         emoji="🕐" onPress={() => router.push('/(manage)/hours')} />
-          <DashboardLink label="Live Queue"    emoji="📋" onPress={() => router.push('/(manage)/queue')} />
+          {/* Configuration is owner-only; the server refuses these writes for staff, so
+              offering them would only produce errors. */}
+          {isOwner && (
+            <>
+              <DashboardLink label="Edit Profile" emoji="✏️" onPress={() => router.push('/(manage)/profile')} />
+              <DashboardLink label="Services"     emoji="💈" onPress={() => router.push('/(manage)/services')} />
+              <DashboardLink label="Hours"        emoji="🕐" onPress={() => router.push('/(manage)/hours')} />
+              <DashboardLink label="Staff"        emoji="👥" onPress={() => router.push('/(manage)/staff')} />
+            </>
+          )}
+          <DashboardLink label="Live Queue" emoji="📋" onPress={() => router.push('/(manage)/queue')} />
         </View>
 
         <Button
@@ -139,6 +154,48 @@ export default function DashboardScreen() {
         />
       </ScrollView>
     </View>
+  );
+}
+
+/**
+ * The signed-in member's own availability. Separate from the owner roster: it posts to
+ * /me/shift, which takes no staff id, so nobody can clock a colleague on or off.
+ */
+function ShiftCard({ onShift }: { onShift: boolean }) {
+  const theme = useTheme();
+  const setOwnShift = useSetOwnShift();
+
+  return (
+    <Card>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.s3 }}>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              fontSize: theme.type.section.size,
+              fontWeight: theme.type.section.weight,
+              color: theme.colors.ink,
+            }}
+          >
+            {onShift ? 'You are on shift' : 'You are off shift'}
+          </Text>
+          <Text style={{ color: theme.colors.inkSoft, fontSize: theme.type.caption.size }}>
+            {onShift
+              ? 'You can be assigned customers, and you count towards waiting times.'
+              : 'You will not be assigned customers while you are off shift.'}
+          </Text>
+        </View>
+        <Switch
+          value={onShift}
+          disabled={setOwnShift.isPending}
+          onValueChange={(value) =>
+            setOwnShift.mutate(value, {
+              onError: (error: Error) =>
+                Alert.alert('Could not change shift', error.message || 'Please try again.'),
+            })
+          }
+        />
+      </View>
+    </Card>
   );
 }
 

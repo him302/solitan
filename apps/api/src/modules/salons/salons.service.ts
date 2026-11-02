@@ -185,15 +185,16 @@ export class SalonsService {
     const membership = await this.prisma.salonStaff.findFirst({
       where: { userId: user.id, active: true },
       orderBy: { createdAt: 'asc' },
-      select: { salonId: true, role: true },
+      select: { salonId: true, role: true, onShift: true },
     });
     if (!membership) throw salonNotFound();
-    return this.loadMySalon(membership.salonId, membership.role);
+    return this.loadMySalon(membership.salonId, membership.role, membership.onShift);
   }
 
   private async loadMySalon(
     salonId: string,
     viewerRole: MySalonDto['viewerRole'],
+    viewerOnShift: boolean | null = null,
   ): Promise<MySalonDto> {
     const [salon, geo, hourRows, rating] = await Promise.all([
       this.prisma.salon.findUnique({ where: { id: salonId } }),
@@ -216,6 +217,7 @@ export class SalonsService {
         distanceMeters: null,
       }),
       viewerRole,
+      viewerOnShift,
       queueStatus: salon.queueStatus,
       bufferConfig: (salon.bufferConfig as BufferConfig | null) ?? null,
       hoursConfigured: hourRows.length > 0,

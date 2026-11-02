@@ -20,11 +20,13 @@ const ID = {
   owner4: '00000000-0000-4000-8000-000000000007',
   owner5: '00000000-0000-4000-8000-000000000008',
   customer: '00000000-0000-4000-8000-000000000009',
+  staff2: '00000000-0000-4000-8000-00000000000a',
 
   // Salon 1 — Soliton Demo Salon (MG Road)
   salon1: '00000000-0000-4000-8000-000000000010',
   salon1OwnerStaff: '00000000-0000-4000-8000-000000000020',
   salon1Staff: '00000000-0000-4000-8000-000000000021',
+  salon1Staff2: '00000000-0000-4000-8000-000000000026',
   salon1SvcHaircut: '00000000-0000-4000-8000-000000000030',
   salon1SvcBeard: '00000000-0000-4000-8000-000000000031',
   salon1SvcColor: '00000000-0000-4000-8000-000000000032',
@@ -88,6 +90,14 @@ async function main(): Promise<void> {
     { id: ID.admin, email: 'admin@soliton.local', name: 'Platform Admin', role: 'admin' as const },
     { id: ID.owner, email: 'owner@soliton.local', name: 'Salon Owner', role: 'owner' as const },
     { id: ID.staff, email: 'staff@soliton.local', name: 'Salon Staff', role: 'staff' as const },
+    {
+      // A second member for salon 1, so parallel service is demonstrable: the ETA engine
+      // must divide a queue across two people, not assume one chair at a time.
+      id: ID.staff2,
+      email: 'staff2@soliton.local',
+      name: 'Priya (Stylist)',
+      role: 'staff' as const,
+    },
     {
       id: ID.newOwner,
       email: 'newowner@soliton.local',
@@ -251,17 +261,30 @@ async function main(): Promise<void> {
 
   }
 
-  // Salon 1 staff member
-  await prisma.salonStaff.upsert({
-    where: { id: ID.salon1Staff },
-    update: {},
-    create: {
-      id: ID.salon1Staff,
-      salonId: ID.salon1,
-      userId: ID.staff,
-      role: 'staff',
-      active: true,
-    },
+  // Salon 1 staff members. Both start on shift so the demo salon has real capacity:
+  // with nobody on shift the ETA engine has no one to divide the queue between.
+  for (const member of [
+    { id: ID.salon1Staff, userId: ID.staff },
+    { id: ID.salon1Staff2, userId: ID.staff2 },
+  ]) {
+    await prisma.salonStaff.upsert({
+      where: { id: member.id },
+      update: { onShift: true },
+      create: {
+        id: member.id,
+        salonId: ID.salon1,
+        userId: member.userId,
+        role: 'staff',
+        active: true,
+        onShift: true,
+      },
+    });
+  }
+
+  // The owner works the floor too, so they count towards capacity.
+  await prisma.salonStaff.update({
+    where: { id: ID.salon1OwnerStaff },
+    data: { onShift: true },
   });
 
   // === Services ===
@@ -419,6 +442,9 @@ async function main(): Promise<void> {
     { salonStaffId: ID.salon1OwnerStaff, serviceId: ID.salon1SvcColor },
     { salonStaffId: ID.salon1Staff, serviceId: ID.salon1SvcHaircut },
     { salonStaffId: ID.salon1Staff, serviceId: ID.salon1SvcBeard },
+    // Priya is the only colourist, so a colouring request cannot be served by just anyone.
+    { salonStaffId: ID.salon1Staff2, serviceId: ID.salon1SvcHaircut },
+    { salonStaffId: ID.salon1Staff2, serviceId: ID.salon1SvcColor },
   ];
   for (const cap of capabilities) {
     await prisma.staffService.upsert({
