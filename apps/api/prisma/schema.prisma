@@ -280,6 +280,12 @@ model QueueEntry {
   serviceId      String         @db.Uuid
   service        Service        @relation(fields: [serviceId], references: [id])
   source         EntrySource
+  /// Walk-in identity, for a customer standing at the counter with no Solitan account.
+  /// `customerId` stays null in that case, so these two carry what the owner typed.
+  /// When the phone does match an existing account the entry is linked to it instead,
+  /// so that person can follow their token in the app.
+  guestName      String?
+  guestPhone     String?
   tokenNumber    Int
   sequenceNo     BigInt
   state          EntryState     @default(waiting)

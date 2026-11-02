@@ -61,6 +61,9 @@ import type {
   UpdateSalonInput,
   UpdateServiceInput,
   AddStaffInput,
+  AddWalkInInput,
+  ApplyDelayInput,
+  ApplyDelayResultDto,
   PublicStaffDto,
   SetStaffServicesInput,
   StaffListDto,
@@ -213,6 +216,15 @@ export function createSolitonApi(config: HttpClientConfig) {
       open: (salonId: string) => http.post<{ status: string }>(`/queue/${salonId}/open`, {}),
       /** Staff: set queue to limited mode (no new joins). */
       limit: (salonId: string) => http.post<{ status: string }>(`/queue/${salonId}/limited`, {}),
+      /** Staff/owner: add a customer who is physically present (Part 7 #6). */
+      addWalkIn: (salonId: string, input: AddWalkInInput) =>
+        http.post<QueueEntryDto>(`/queue/${salonId}/walkin`, input),
+      /** Staff/owner: tell waiting customers the queue is running late (Part 7 #11-12). */
+      applyDelay: (salonId: string, input: ApplyDelayInput) =>
+        http.post<ApplyDelayResultDto>(`/queue/${salonId}/delay`, input),
+      /** Staff/owner: remove an entry on the customer behalf. Not a no-show. */
+      cancelAsStaff: (salonId: string, entryId: string) =>
+        http.delete<QueueEntryDto>(`/queue/${salonId}/entries/${entryId}`),
       /** Anyone: list recent salon announcements. */
       announcements: (salonId: string) => http.get<SalonAnnouncementDto[]>(`/queue/${salonId}/announcements`),
       /** Staff: post an announcement. */

@@ -10,7 +10,10 @@ import {
   buildRealtimeEvent,
   entryRoom,
   salonRoom,
+  type AddWalkInInput,
   type AnnouncementInput,
+  type ApplyDelayInput,
+  type ApplyDelayResultDto,
   type BookingStatus,
   type ChangeServiceInput,
   type EntryState as ContractEntryState,
@@ -700,6 +703,265 @@ export class QueueService {
     return { id: ann.id, salonId: ann.salonId, type: ann.type, body: ann.body, createdAt: ann.createdAt.toISOString(), entryId: ann.entryId ?? null };
   }
 
+  /**
+   * Staff or owner: add a customer standing at the counter (Part 7 #6).
+   *
+   * EntrySource.walkin existed from the start but nothing could create one, so an owner
+   * had no way to put an in-person customer into the queue — they would have had to ask
+   * them to install the app while standing there.
+   *
+   * No account is created. Most walk-ins are one-off, and filling the users table with
+   * people who never asked for an account is worse than storing the name the owner typed.
+   * A phone that already belongs to an account is linked, so that customer sees the token
+   * in their app like any other entry.
+   */
+  async addWalkIn(actorId: string, salonId: string, input: AddWalkInInput): Promise<QueueEntryDto> {
+    await this.assertStaffAccess(actorId, salonId);
+
+    const service = await this.prisma.service.findFirst({
+      where: { id: input.serviceId, salonId, active: true },
+      select: { id: true, estimatedMinutes: true },
+    });
+    if (!service) throw new NotFoundException('Service not found or inactive.');
+
+    const queue = await this.prisma.queue.findUnique({
+      where: { salonId },
+      select: { id: true, status: true, maxCapacity: true },
+    });
+    if (!queue) throw new NotFoundException('Queue not found for this salon.');
+    // 'limited' blocks remote joins but not walk-ins: that is what it is for — serving
+    // the people physically present while the queue is shut to new remote customers.
+    // Only a paused or closed queue refuses everyone.
+    if (queue.status !== 'open' && queue.status !== 'limited') {
+      throw new ConflictException(`Queue is currently ${queue.status}.`);
+    }
+
+    if (queue.maxCapacity != null) {
+      const waitingNow = await this.prisma.queueEntry.count({
+        where: { salonId, state: { in: ['waiting', 'notified', 'checked_in'] } },
+      });
+      if (waitingNow >= queue.maxCapacity) throw new ConflictException('Queue is full.');
+    }
+
+    const phone = input.phone ? normalizeGuestPhone(input.phone) : null;
+
+    // Link to an existing account when we recognise the number, so the customer can
+    // follow their own token. Never creates one.
+    const linkedCustomer = phone
+      ? await this.prisma.user.findUnique({ where: { phone }, select: { id: true } })
+      : null;
+
+    // Duplicate protection (Part 6C) for both shapes of walk-in: a linked account is
+    // covered by customerId, an anonymous one by the phone stored on the entry.
+    if (linkedCustomer || phone) {
+      const duplicate = await this.prisma.queueEntry.findFirst({
+        where: {
+          salonId,
+          state: { in: ['waiting', 'notified', 'checked_in', 'in_service'] },
+          ...(linkedCustomer ? { customerId: linkedCustomer.id } : { guestPhone: phone }),
+        },
+        select: { id: true },
+      });
+      if (duplicate) {
+        const existing = await this.loadEntry(duplicate.id);
+        return this.toEntryDto(existing, await this.positionAhead(existing));
+      }
+    }
+
+    let preferredStaffId = input.preferredStaffId;
+    if (preferredStaffId) {
+      const staff = await this.prisma.salonStaff.findFirst({
+        where: { id: preferredStaffId, salonId, active: true },
+        select: { id: true },
+      });
+      if (!staff) preferredStaffId = undefined;
+    }
+
+    const newEntryId = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.queue.update({
+        where: { salonId },
+        data: {
+          tokenSeq: { increment: 1 },
+          sequenceSeq: { increment: 1 },
+          queueVersion: { increment: 1 },
+        },
+        select: { id: true, tokenSeq: true, sequenceSeq: true },
+      });
+
+      const waitingCount = await tx.queueEntry.count({
+        where: { queueId: updated.id, state: { in: ['waiting', 'notified', 'checked_in'] } },
+      });
+      const slotStartAt = new Date(Date.now() + waitingCount * service.estimatedMinutes * 60_000);
+      const slotEndAt = new Date(slotStartAt.getTime() + service.estimatedMinutes * 60_000);
+
+      const created = await tx.queueEntry.create({
+        data: {
+          queueId: updated.id,
+          salonId,
+          customerId: linkedCustomer?.id ?? null,
+          serviceId: service.id,
+          source: 'walkin',
+          guestName: input.name,
+          guestPhone: phone,
+          tokenNumber: updated.tokenSeq,
+          sequenceNo: updated.sequenceSeq,
+          state: 'waiting',
+          preferredStaffId: preferredStaffId ?? null,
+          // A walk-in is already here, so they are marked arrived on creation. Requiring
+          // a separate check-in for someone at the counter is busywork.
+          arrivedAt: new Date(),
+          slotStartAt,
+          slotEndAt,
+        },
+        select: { id: true },
+      });
+
+      await tx.queueAudit.create({
+        data: {
+          salonId,
+          entryId: created.id,
+          actorId,
+          action: 'walkin_added',
+          before: Prisma.JsonNull,
+          after: {
+            state: 'waiting',
+            tokenNumber: updated.tokenSeq,
+            linkedAccount: linkedCustomer !== null,
+          },
+        },
+      });
+
+      return created.id;
+    });
+
+    const entry = await this.loadEntry(newEntryId);
+    const dto = this.toEntryDto(entry, await this.positionAhead(entry));
+    this.emitEntryAndSalon(entry, 'queue.entry.joined', dto);
+
+    logger.info(
+      {
+        event: 'queue_walkin_added',
+        entryId: entry.id,
+        salonId,
+        actorId,
+        token: entry.tokenNumber,
+        linkedAccount: linkedCustomer !== null,
+      },
+      'queue_walkin_added',
+    );
+    return dto;
+  }
+
+  /**
+   * Staff or owner: communicate a delay (Part 7 #11-12). QueueEntry.delayMinutes existed
+   * in the schema from the start but no route ever wrote it, so a salon running late had
+   * no way to say so and customers kept seeing an estimate that was already wrong.
+   *
+   * Additive, so repeated small slips accumulate honestly, and may be negative to take
+   * back an over-estimate — but the total is clamped at zero, because a salon cannot
+   * promise to run early.
+   */
+  async applyDelay(
+    actorId: string,
+    salonId: string,
+    input: ApplyDelayInput,
+  ): Promise<ApplyDelayResultDto> {
+    await this.assertStaffAccess(actorId, salonId);
+
+    const targets = await this.prisma.queueEntry.findMany({
+      where: {
+        salonId,
+        state: { in: ['waiting', 'notified', 'checked_in'] },
+        ...(input.entryId ? { id: input.entryId } : {}),
+      },
+      select: { id: true, delayMinutes: true },
+    });
+    if (targets.length === 0) {
+      // Nobody is waiting, so there is nothing to tell anyone. Reported rather than
+      // raised: an owner pressing "running late" on an empty queue has not erred.
+      return { affected: 0, delayMinutes: 0 };
+    }
+
+    const applied = await this.prisma.$transaction(async (tx) => {
+      let resulting = 0;
+      for (const target of targets) {
+        const next = Math.max(0, target.delayMinutes + input.delayMinutes);
+        resulting = next;
+        await tx.queueEntry.update({ where: { id: target.id }, data: { delayMinutes: next } });
+      }
+
+      await tx.queue.update({
+        where: { salonId },
+        data: { queueVersion: { increment: 1 } },
+      });
+
+      await tx.queueAudit.create({
+        data: {
+          salonId,
+          entryId: input.entryId ?? null,
+          actorId,
+          action: 'delay_applied',
+          before: Prisma.JsonNull,
+          after: {
+            delayMinutes: input.delayMinutes,
+            affected: targets.length,
+            reason: input.reason ?? null,
+          },
+        },
+      });
+
+      return resulting;
+    });
+
+    // An announcement, so the reason reaches customers rather than only a shifted number.
+    // A waiting time that silently grows is worse than one that explains itself.
+    const sign = input.delayMinutes > 0 ? 'increased' : 'reduced';
+    const minutes = Math.abs(input.delayMinutes);
+    const body = input.reason
+      ? `Waiting time ${sign} by about ${minutes} minutes: ${input.reason}`
+      : `Waiting time ${sign} by about ${minutes} minutes.`;
+    await this.postAnnouncement(salonId, actorId, { body, type: 'delay' });
+
+    this.emitQueueControl(salonId, 'queue.delayed');
+
+    logger.info(
+      {
+        event: 'queue_delay_applied',
+        salonId,
+        actorId,
+        delayMinutes: input.delayMinutes,
+        affected: targets.length,
+      },
+      'queue_delay_applied',
+    );
+
+    return { affected: targets.length, delayMinutes: applied };
+  }
+
+  /**
+   * Staff or owner: remove an entry on the customer's behalf (Part 7 #7) — someone who
+   * phoned to cancel, or left without saying.
+   *
+   * Deliberately distinct from markNoShow, which records that they failed to turn up and
+   * counts against the salon's no-show policy. A cancellation should not be held against
+   * the customer, so conflating the two would quietly get people restricted.
+   */
+  async cancelEntryAsStaff(
+    actorId: string,
+    salonId: string,
+    entryId: string,
+  ): Promise<QueueEntryDto> {
+    await this.assertStaffAccess(actorId, salonId);
+    const entry = await this.loadEntry(entryId);
+    this.assertEntrySalon(entry, salonId);
+
+    if (!['waiting', 'notified', 'checked_in'].includes(entry.state)) {
+      throw new ConflictException(`Cannot cancel an entry that is ${entry.state}.`);
+    }
+
+    return this.transition(entry, 'cancelled', actorId, 'cancelled');
+  }
+
   /** Customer or staff: list recent announcements for a salon. */
   async listAnnouncements(salonId: string): Promise<SalonAnnouncementDto[]> {
     const items = await this.prisma.salonAnnouncement.findMany({
@@ -742,6 +1004,8 @@ export class QueueService {
         chair: { select: { label: true } },
         preferredStaff: { select: { user: { select: { name: true } } } },
         customer: { select: { name: true, phone: true } },
+        guestName: true,
+        guestPhone: true,
         createdAt: true,
       },
     });
@@ -754,8 +1018,10 @@ export class QueueService {
       entryState: e.state as ContractEntryState,
       etaMinutes: e.etaMinutes,
       chairLabel: e.chair?.label ?? null,
-      customerName: e.customer?.name ?? null,
-      customerPhone: e.customer?.phone ?? null,
+      // Falls back to the walk-in fields: a walk-in has no linked account, and an
+      // unnamed row cannot be called out across the salon floor.
+      customerName: e.customer?.name ?? e.guestName ?? null,
+      customerPhone: e.customer?.phone ?? e.guestPhone ?? null,
       arrivedAt: e.arrivedAt?.toISOString() ?? null,
       lateMinutes: e.lateMinutes ?? null,
       lateAction: e.lateAction ?? null,
@@ -814,6 +1080,8 @@ export class QueueService {
             chair: { select: { label: true } },
             preferredStaff: { select: { user: { select: { name: true } } } },
             customer: { select: { name: true, phone: true } },
+            guestName: true,
+            guestPhone: true,
             createdAt: true,
           },
         },
@@ -857,8 +1125,10 @@ export class QueueService {
       entryState: e.state as ContractEntryState,
       etaMinutes: etaMap.get(e.id) ?? e.etaMinutes,
       chairLabel: e.chair?.label ?? null,
-      customerName: e.customer?.name ?? null,
-      customerPhone: e.customer?.phone ?? null,
+      // Falls back to the walk-in fields: a walk-in has no linked account, and an
+      // unnamed row cannot be called out across the salon floor.
+      customerName: e.customer?.name ?? e.guestName ?? null,
+      customerPhone: e.customer?.phone ?? e.guestPhone ?? null,
       arrivedAt: e.arrivedAt?.toISOString() ?? null,
       lateMinutes: e.lateMinutes ?? null,
       lateAction: e.lateAction ?? null,
@@ -1033,4 +1303,15 @@ export class QueueService {
     const event = buildRealtimeEvent({ type, entityId: salonId, version: Date.now() });
     this._io.to(salonRoom(salonId)).emit('realtime:event', event);
   }
+}
+
+/**
+ * Same normalisation the staff module applies, so "+91 98765 43210" and "9876543210"
+ * resolve to one account rather than two.
+ */
+export function normalizeGuestPhone(raw: string): string {
+  const trimmed = raw.trim();
+  const plus = trimmed.startsWith('+');
+  const digits = trimmed.replace(/\D/g, '');
+  return plus ? `+${digits}` : digits;
 }

@@ -17,6 +17,8 @@ import {
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { ApiTags } from '@nestjs/swagger';
 import {
+  addWalkInSchema,
+  applyDelaySchema,
   joinQueueSchema,
   staffActionSchema,
   lateReportSchema,
@@ -25,6 +27,8 @@ import {
   announcementSchema,
   setCapacitySchema,
   noShowPolicySchema,
+  type AddWalkInInput,
+  type ApplyDelayInput,
   type JoinQueueInput,
   type StaffActionInput,
   type LateReportInput,
@@ -302,6 +306,48 @@ export class QueueController {
   ) {
     const salonId = await resolveSalonId(this.prisma, entryId);
     return this.queue.undoComplete(user.id, salonId, entryId);
+  }
+
+  /**
+   * Staff or owner: add a customer who is physically present (Part 7 #6).
+   * Rate limited like a join, since it creates a queue entry.
+   */
+  @Post(':salonId/walkin')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  addWalkIn(
+    @CurrentUser() user: RequestUser,
+    @Param('salonId', ParseUUIDPipe) salonId: string,
+    @Body(new ZodPipe(addWalkInSchema)) body: AddWalkInInput,
+  ) {
+    return this.queue.addWalkIn(user.id, salonId, body);
+  }
+
+  /** Staff or owner: tell waiting customers the queue is running late (Part 7 #11-12). */
+  @Post(':salonId/delay')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  applyDelay(
+    @CurrentUser() user: RequestUser,
+    @Param('salonId', ParseUUIDPipe) salonId: string,
+    @Body(new ZodPipe(applyDelaySchema)) body: ApplyDelayInput,
+  ) {
+    return this.queue.applyDelay(user.id, salonId, body);
+  }
+
+  /**
+   * Staff or owner: remove an entry on the customer's behalf (Part 7 #7). Separate from
+   * the no-show route, which counts against the customer's no-show record.
+   */
+  @Delete(':salonId/entries/:entryId')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  cancelAsStaff(
+    @CurrentUser() user: RequestUser,
+    @Param('salonId', ParseUUIDPipe) salonId: string,
+    @Param('entryId', ParseUUIDPipe) entryId: string,
+  ) {
+    return this.queue.cancelEntryAsStaff(user.id, salonId, entryId);
   }
 
   @Get(':salonId/announcements')

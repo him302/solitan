@@ -181,6 +181,58 @@ export type StaffActionInput = z.infer<typeof staffActionSchema>;
 export const queueControlSchema = z.object({}).strict();
 export type QueueControlInput = z.infer<typeof queueControlSchema>;
 
+/**
+ * An owner adding a customer who is physically present (Part 7 #6). Name is required
+ * because a token with nobody's name on it cannot be called out; phone is optional, and
+ * when it matches an existing account the entry is linked to it so that person can follow
+ * their token in the app.
+ */
+export const addWalkInSchema = z
+  .object({
+    serviceId: z.string().uuid(),
+    name: z.string().trim().min(1).max(80),
+    phone: z
+      .string()
+      .trim()
+      .min(8)
+      .max(20)
+      .regex(/^\+?[0-9 ()-]+$/, 'Enter a valid phone number')
+      .optional(),
+    preferredStaffId: z.string().uuid().optional(),
+  })
+  .strict();
+export type AddWalkInInput = z.infer<typeof addWalkInSchema>;
+
+/**
+ * Communicating a delay (Part 7 #11-12). `delayMinutes` is additive and may be negative
+ * to take back an over-estimate, but the resulting total is clamped at zero: a salon
+ * cannot promise to run early.
+ */
+export const applyDelaySchema = z
+  .object({
+    delayMinutes: z.number().int().min(-240).max(240),
+    /** Shown to affected customers, e.g. "equipment problem". */
+    reason: z.string().trim().min(1).max(200).optional(),
+    /** Omit to delay everyone still waiting; set to delay one entry only. */
+    entryId: z.string().uuid().optional(),
+  })
+  .strict()
+  .refine((value) => value.delayMinutes !== 0, 'A delay of zero changes nothing');
+export type ApplyDelayInput = z.infer<typeof applyDelaySchema>;
+
+export interface ApplyDelayResultDto {
+  /** How many entries were adjusted. */
+  affected: number;
+  /** The delay now carried by those entries, after clamping. */
+  delayMinutes: number;
+}
+
+/** An owner removing an entry on the customer's behalf (Part 7 #7). */
+export const cancelEntrySchema = z
+  .object({ reason: z.string().trim().min(1).max(200).optional() })
+  .strict();
+export type CancelEntryInput = z.infer<typeof cancelEntrySchema>;
+
 // ── Realtime event types ───────────────────────────────────────────────────
 
 export type QueueEventType =
@@ -199,4 +251,5 @@ export type QueueEventType =
   | 'queue.closed'
   | 'queue.limited'
   | 'queue.opened'
-  | 'queue.announcement';
+  | 'queue.announcement'
+  | 'queue.delayed';
