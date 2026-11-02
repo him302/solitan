@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { RateLimitModule } from '../../common/rate-limit/rate-limit.module';
+import { QueueModule } from '../queue/queue.module';
 import { AuthModule } from '../auth/auth.module';
 import { MeController, SalonsController } from './salons.controller';
 import { SalonAccessService } from './salon-access.service';
 import { SalonsService } from './salons.service';
 
 @Module({
-  imports: [AuthModule, RateLimitModule],
+  imports: [AuthModule, RateLimitModule, QueueModule],
   controllers: [SalonsController, MeController],
   providers: [SalonsService, SalonAccessService],
   exports: [SalonAccessService],

@@ -2,6 +2,7 @@ import { discoveryQuerySchema } from '@soliton/api-contract';
 import { asPrisma, createPrismaMock, type PrismaMock } from '../../../test/support/prisma-mock';
 import type { AnalyticsService } from '../analytics/analytics.service';
 import { DiscoveryService } from './discovery.service';
+import { LiveQueueService } from '../queue/live-queue.service';
 
 const row = (n: number, overrides: Record<string, unknown> = {}) => ({
   id: `salon-${n}`,
@@ -29,7 +30,11 @@ function build(): { service: DiscoveryService; prisma: PrismaMock; track: jest.M
   const prisma = createPrismaMock();
   prisma.service.findMany.mockResolvedValue([]);
   const track = jest.fn();
-  const service = new DiscoveryService(asPrisma(prisma), { track } as unknown as AnalyticsService);
+  const service = new DiscoveryService(
+    asPrisma(prisma),
+    { track } as unknown as AnalyticsService,
+    new LiveQueueService(asPrisma(prisma)),
+  );
   return { service, prisma, track };
 }
 
@@ -84,12 +89,74 @@ describe('DiscoveryService.search', () => {
     );
   });
 
-  it('never fabricates queue data: every card says the live queue is unavailable', async () => {
+  it('reports the live queue as unavailable when the salon has no open queue', async () => {
+    // Not a placeholder: a closed queue genuinely has nothing live to report, and
+    // "0 waiting" would read as an empty queue you could join.
     const { service, prisma } = build();
     prisma.$queryRaw.mockResolvedValue([row(1)]);
+    prisma.queue.findMany.mockResolvedValue([{ salonId: 'salon-1', status: 'closed' }]);
+
     const [item] = (await service.search(q())).items;
     expect(item?.liveQueue).toEqual({ available: false });
-    expect(JSON.stringify(item)).not.toMatch(/eta|position|token|waiting|chair|staff/i);
+  });
+
+  it('shows real queue data when the queue is open (Part 6A)', async () => {
+    // This used to be hardcoded to unavailable for every card, which left the most
+    // important information in a queue app permanently missing.
+    const { service, prisma } = build();
+    prisma.$queryRaw.mockResolvedValue([row(1)]);
+    prisma.queue.findMany.mockResolvedValue([{ salonId: 'salon-1', status: 'open' }]);
+    prisma.salonStaff.findMany.mockResolvedValue([
+      { id: 'staff-1', salonId: 'salon-1', capabilities: [] },
+    ]);
+    prisma.queueEntry.findMany.mockResolvedValue([
+      {
+        id: 'e1',
+        salonId: 'salon-1',
+        sequenceNo: 1n,
+        state: 'in_service',
+        serviceId: 'svc-1',
+        staffId: 'staff-1',
+        preferredStaffId: null,
+        delayMinutes: 0,
+        startedAt: new Date(Date.now() - 10 * 60_000),
+        tokenNumber: 101,
+        service: { estimatedMinutes: 30 },
+      },
+      {
+        id: 'e2',
+        salonId: 'salon-1',
+        sequenceNo: 2n,
+        state: 'waiting',
+        serviceId: 'svc-1',
+        staffId: null,
+        preferredStaffId: null,
+        delayMinutes: 0,
+        startedAt: null,
+        tokenNumber: 102,
+        service: { estimatedMinutes: 30 },
+      },
+    ]);
+
+    const [item] = (await service.search(q())).items;
+    expect(item?.liveQueue).toEqual({
+      available: true,
+      currentToken: 101,
+      totalWaiting: 1,
+      // The single server is 10 minutes into a 30-minute service, then has one customer
+      // ahead of a new joiner: 20 remaining + 30 = 50.
+      etaMinutes: 50,
+    });
+  });
+
+  it('still never leaks another customer identity onto a public card', async () => {
+    const { service, prisma } = build();
+    prisma.$queryRaw.mockResolvedValue([row(1)]);
+    prisma.queue.findMany.mockResolvedValue([{ salonId: 'salon-1', status: 'open' }]);
+
+    const [item] = (await service.search(q())).items;
+    // Aggregates are fine; names, phones and entry ids are not.
+    expect(JSON.stringify(item)).not.toMatch(/phone|guestName|customerId|entryId/i);
   });
 
   it('does not invent ratings: null when there are no reviews, rounded when there are', async () => {

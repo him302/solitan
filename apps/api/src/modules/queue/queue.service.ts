@@ -28,7 +28,11 @@ import {
 } from '@soliton/api-contract';
 import type { Server } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
-import { EtaService } from './eta.service';
+import {
+  buildServerPool,
+  computeEtas as runEtaEngine,
+  type EtaServer,
+} from './eta-engine';
 import { logger } from '../../common/logging/logger';
 
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -91,7 +95,6 @@ export class QueueService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly eta: EtaService,
   ) {}
 
   /** Called by the gateway once the server is ready. */
@@ -1071,6 +1074,11 @@ export class QueueService {
             sequenceNo: true,
             state: true,
             etaMinutes: true,
+            delayMinutes: true,
+            startedAt: true,
+            serviceId: true,
+            staffId: true,
+            preferredStaffId: true,
             arrivedAt: true,
             lateMinutes: true,
             lateAction: true,
@@ -1095,22 +1103,58 @@ export class QueueService {
       ['waiting', 'notified', 'checked_in'].includes(e.state),
     );
 
-    const avgDuration =
-      waiting.length > 0
-        ? Math.round(
-            waiting.reduce((acc, e) => acc + e.service.estimatedMinutes, 0) / waiting.length,
-          )
-        : 30;
+    // Who can actually serve customers right now, with what they are trained for and
+    // what they are already doing. Chairs are furniture; staff serve people.
+    const onShift = await this.prisma.salonStaff.findMany({
+      where: { salonId, active: true, onShift: true },
+      select: { id: true, capabilities: { select: { serviceId: true } } },
+    });
 
-    const etaMap = this.eta.computeEtas(
-      waiting.map((e) => ({
+    const servers: EtaServer[] = onShift.map((member) => {
+      const busyEntry = inService.find((e) => e.staffId === member.id);
+      return {
+        id: member.id,
+        capableServiceIds: member.capabilities.map((c) => c.serviceId),
+        busyWith:
+          busyEntry?.startedAt != null
+            ? {
+                startedAt: busyEntry.startedAt,
+                serviceDurationMinutes: busyEntry.service.estimatedMinutes,
+              }
+            : undefined,
+      };
+    });
+
+    // In-progress work that is not attributed to an on-shift member, used only by the
+    // fallbacks below (a salon that has not adopted shift tracking).
+    const unattributedWork = inService
+      .filter((e) => e.startedAt != null)
+      .map((e) => ({
+        startedAt: e.startedAt as Date,
+        serviceDurationMinutes: e.service.estimatedMinutes,
+      }));
+
+    const activeChairCount = await this.prisma.chair.count({
+      where: { salonId, active: true },
+    });
+
+    const pool = buildServerPool(servers, activeChairCount, unattributedWork);
+
+    const estimate = runEtaEngine({
+      now: new Date(),
+      servers: pool.servers,
+      basis: pool.basis,
+      waiting: waiting.map((e) => ({
         id: e.id,
         sequenceNo: e.sequenceNo,
+        serviceId: e.serviceId,
         serviceDurationMinutes: e.service.estimatedMinutes,
+        delayMinutes: e.delayMinutes,
+        preferredStaffId: e.preferredStaffId,
       })),
-      inService.length,
-      avgDuration,
-    );
+    });
+
+    const etaMap = estimate.etas;
 
     const currentToken =
       inService.length > 0
@@ -1138,7 +1182,9 @@ export class QueueService {
       createdAt: e.createdAt.toISOString(),
     }));
 
-    const etaForNext = this.eta.etaForNextJoin(waiting.length, inService.length, avgDuration);
+    // From the same simulation as the per-entry numbers, so the figure a joining
+    // customer sees cannot contradict the queue they are about to join.
+    const etaForNext = estimate.etaForNextJoin;
 
     const isAtCapacity = queue.maxCapacity != null && waiting.length >= queue.maxCapacity;
 
@@ -1149,6 +1195,7 @@ export class QueueService {
       waitingCount: waiting.length,
       activeChairs: inService.length,
       etaMinutes: etaForNext,
+      etaBasis: estimate.basis,
       version: queue.queueVersion.toString(),
       snapshotAt: new Date().toISOString(),
       maxCapacity: queue.maxCapacity ?? null,

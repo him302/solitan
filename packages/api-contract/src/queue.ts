@@ -62,6 +62,9 @@ export interface QueueEntryDto {
   queueVersion: string;
 }
 
+/** How much to trust an estimate. See SalonQueueSnapshot.etaBasis. */
+export type EtaBasisDto = 'staff' | 'chairs' | 'assumed_single' | 'unavailable';
+
 /** Authoritative salon-level queue snapshot emitted by snapshot:request. */
 export interface SalonQueueSnapshot {
   salonId: string;
@@ -74,6 +77,16 @@ export interface SalonQueueSnapshot {
   activeChairs: number;
   /** Estimated wait in minutes for the next person joining now. */
   etaMinutes: number | null;
+  /**
+   * What the estimate was derived from, so the interface can be honest about confidence
+   * instead of presenting every number as equally reliable (Part 10).
+   *
+   *  - staff:          real on-shift staff and their capabilities. The accurate case.
+   *  - chairs:         nobody marked on shift, so chair count stood in for capacity.
+   *  - assumed_single: neither configured; inferred from work in progress.
+   *  - unavailable:    nothing to estimate from. etaMinutes is null.
+   */
+  etaBasis: EtaBasisDto;
   /** Monotonically increasing version (serialised BigInt). */
   version: string;
   /** ISO timestamp when this snapshot was generated (for freshness display). */

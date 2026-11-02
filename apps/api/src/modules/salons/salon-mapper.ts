@@ -9,7 +9,11 @@ import type {
 import { CURRENCY } from '@soliton/api-contract';
 import type { OpenState } from '@soliton/api-contract';
 
-/** Phase 1 has no queue engine. This is the single honest "no live queue" value. */
+/**
+ * The honest "no live queue" value, used when a salon has no queue row, its queue is
+ * closed, or no estimate can be derived. Not a placeholder: a closed queue genuinely has
+ * nothing live to report, and saying so is better than showing a stale number.
+ */
 export const NO_LIVE_QUEUE: LiveQueueInfo = { available: false };
 
 export interface ServiceRecord {
@@ -53,6 +57,12 @@ export function toPublicSalon(input: {
   openState: OpenState;
   rating: RatingSummary | null;
   distanceMeters: number | null;
+  /**
+   * Live queue state. Defaults to unavailable so a caller that has not loaded queue data
+   * cannot accidentally imply one exists — but callers that can supply it must, since
+   * waiting time is the whole point of the product (Part 6A).
+   */
+  liveQueue?: LiveQueueInfo;
 }): PublicSalonDto {
   const { salon } = input;
   return {
@@ -66,7 +76,7 @@ export function toPublicSalon(input: {
     openState: input.openState,
     rating: input.rating,
     distanceMeters: input.distanceMeters === null ? null : Math.round(input.distanceMeters),
-    liveQueue: NO_LIVE_QUEUE,
+    liveQueue: input.liveQueue ?? NO_LIVE_QUEUE,
   };
 }
 

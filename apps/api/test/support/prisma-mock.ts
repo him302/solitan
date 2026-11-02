@@ -15,7 +15,8 @@ export interface PrismaMock {
   user: { findUnique: Fn; create: Fn; update: Fn };
   staffService: { deleteMany: Fn; createMany: Fn };
   queueEntry: { findMany: Fn; groupBy: Fn };
-  queue: { create: Fn };
+  queue: { create: Fn; findMany: Fn; findUnique: Fn };
+  chair: { groupBy: Fn; count: Fn };
   operatingHours: { findMany: Fn; deleteMany: Fn; createMany: Fn };
   service: { findMany: Fn; findFirst: Fn; create: Fn; update: Fn };
   review: { aggregate: Fn; groupBy: Fn };
@@ -42,7 +43,15 @@ export function createPrismaMock(): PrismaMock {
       findMany: jest.fn().mockResolvedValue([]),
       groupBy: jest.fn().mockResolvedValue([]),
     },
-    queue: { create: jest.fn() },
+    queue: {
+      create: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn().mockResolvedValue(null),
+    },
+    chair: {
+      groupBy: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
+    },
     operatingHours: {
       findMany: jest.fn().mockResolvedValue([]),
       deleteMany: jest.fn(),

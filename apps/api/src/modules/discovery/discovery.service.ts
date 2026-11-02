@@ -13,6 +13,7 @@ import { AnalyticsService } from '../analytics/analytics.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { computeOpenState, type HoursRow } from '../salons/open-state';
 import { toPublicSalon, toRating, toServiceDto } from '../salons/salon-mapper';
+import { LiveQueueService } from '../queue/live-queue.service';
 import {
   buildDiscoveryQuery,
   buildMapQuery,
@@ -27,6 +28,7 @@ export class DiscoveryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly analytics: AnalyticsService,
+    private readonly liveQueue: LiveQueueService,
   ) {}
 
   /**
@@ -41,7 +43,14 @@ export class DiscoveryService {
 
     const hasMore = rows.length > query.limit;
     const page = hasMore ? rows.slice(0, query.limit) : rows;
-    const related = await this.loadRelated(page.map((row) => row.id));
+    const salonIds = page.map((row) => row.id);
+    // Live queue state for the whole page in one batch. Part 6A requires queue status,
+    // the number waiting and an estimate on every card; these were hardcoded to
+    // "unavailable" before.
+    const [related, liveQueues] = await Promise.all([
+      this.loadRelated(salonIds),
+      this.liveQueue.forSalons(salonIds),
+    ]);
     const now = new Date();
 
     const items: DiscoverySalonDto[] = page.map((row) => ({
@@ -51,6 +60,7 @@ export class DiscoveryService {
         openState: computeOpenState(row.status, related.hours.get(row.id) ?? [], now),
         rating: related.ratings.get(row.id) ?? null,
         distanceMeters: row.distance_m,
+        liveQueue: liveQueues.get(row.id),
       }),
       servicePreview: (related.services.get(row.id) ?? []).slice(0, SERVICE_PREVIEW_COUNT),
     }));

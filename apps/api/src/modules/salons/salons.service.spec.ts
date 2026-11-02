@@ -13,6 +13,7 @@ import {
 import type { AnalyticsService } from '../analytics/analytics.service';
 import { SalonAccessService } from './salon-access.service';
 import { SalonsService } from './salons.service';
+import { LiveQueueService } from '../queue/live-queue.service';
 
 const RAIPUR = { lat: 21.2514, lng: 81.6296 };
 
@@ -28,9 +29,12 @@ function build(): { service: SalonsService; prisma: PrismaMock; track: jest.Mock
   const prisma = createPrismaMock();
   const track = jest.fn();
   const access = new SalonAccessService(asPrisma(prisma));
-  const service = new SalonsService(asPrisma(prisma), access, {
-    track,
-  } as unknown as AnalyticsService);
+  const service = new SalonsService(
+    asPrisma(prisma),
+    access,
+    { track } as unknown as AnalyticsService,
+    new LiveQueueService(asPrisma(prisma)),
+  );
   return { service, prisma, track };
 }
 

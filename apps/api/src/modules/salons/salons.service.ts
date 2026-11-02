@@ -19,6 +19,7 @@ import { SalonAccessService } from './salon-access.service';
 import { readSalonGeo, setSalonLocation } from './salon-geo';
 import { computeOpenState, toHoursDto } from './open-state';
 import { toPublicSalon, toRating, toServiceDto } from './salon-mapper';
+import { LiveQueueService } from '../queue/live-queue.service';
 
 @Injectable()
 export class SalonsService {
@@ -26,6 +27,7 @@ export class SalonsService {
     private readonly prisma: PrismaService,
     private readonly access: SalonAccessService,
     private readonly analytics: AnalyticsService,
+    private readonly liveQueue: LiveQueueService,
   ) {}
 
   /**
@@ -106,6 +108,7 @@ export class SalonsService {
         openState: computeOpenState(salon.status, hourRows),
         rating: toRating(rating._avg.rating, rating._count._all),
         distanceMeters: geo.distance_m,
+        liveQueue: await this.liveQueue.forSalon(salon.id),
       }),
       hours: toHoursDto(hourRows),
       services: services.map(toServiceDto),
