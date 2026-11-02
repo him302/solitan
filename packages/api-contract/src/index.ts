@@ -164,3 +164,6 @@ export * from './analytics';
 
 // ---------------- staff management ----------------
 export * from './staff';
+
+// ---------------- notifications ----------------
+export * from './notification';

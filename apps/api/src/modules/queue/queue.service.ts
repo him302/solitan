@@ -18,6 +18,7 @@ import {
   type ChangeServiceInput,
   type EntryState as ContractEntryState,
   type LateReportInput,
+  type NotificationType,
   type LateResponseInput,
   type QueueEntryDto,
   type QueueEventType,
@@ -28,6 +29,7 @@ import {
 } from '@soliton/api-contract';
 import type { Server } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   buildServerPool,
   computeEtas as runEtaEngine,
@@ -95,6 +97,7 @@ export class QueueService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Called by the gateway once the server is ready. */
@@ -268,6 +271,11 @@ export class QueueService {
     });
     this.emit(entryRoom(entry.id), 'queue.entry.joined', entry.id, entry.queue.queueVersion, dto);
 
+    await this.notifyCustomer(entry, 'QUEUE_JOINED', {
+      positionAhead: dto.queuePositionAhead ?? undefined,
+      etaMinutes: dto.etaMinutes,
+    });
+
     logger.info(
       { event: 'queue_joined', entryId: entry.id, customerId, salonId, token: entry.tokenNumber },
       'queue_joined',
@@ -329,6 +337,9 @@ export class QueueService {
     await this.assertStaffAccess(staffId, salonId);
     const entry = await this.loadEntry(entryId);
     this.assertEntrySalon(entry, salonId);
+    await this.notifyCustomer(entry, 'QUEUE_TURN_APPROACHING', {
+      etaMinutes: entry.etaMinutes ?? undefined,
+    });
     if (entry.state !== 'waiting') {
       throw new ConflictException(`Entry is in state ${entry.state}, cannot notify.`);
     }
@@ -400,6 +411,9 @@ export class QueueService {
 
     const dto = this.toEntryDto(updated, null);
     this.emitEntryAndSalon(updated, 'queue.entry.started', dto);
+    await this.notifyCustomer(updated, 'QUEUE_SERVICE_STARTED', {
+      staffName: updated.preferredStaff?.user?.name ?? undefined,
+    });
     return dto;
   }
 
@@ -437,6 +451,7 @@ export class QueueService {
 
     const dto = this.toEntryDto(updated, null);
     this.emitEntryAndSalon(updated, 'queue.entry.completed', dto);
+    await this.notifyCustomer(updated, 'QUEUE_SERVICE_COMPLETED');
     return dto;
   }
 
@@ -448,11 +463,14 @@ export class QueueService {
     if (!['waiting', 'notified', 'checked_in'].includes(entry.state)) {
       throw new ConflictException(`Cannot mark no-show for entry in state ${entry.state}.`);
     }
+    await this.notifyCustomer(entry, 'QUEUE_NO_SHOW');
     return this.transition(entry, 'no_show', staffId, 'no_show');
   }
 
   /** Pause queue. */
   async pauseQueue(staffId: string, salonId: string): Promise<{ status: PrismaQueueStatus }> {
+    // Notified before the status changes, while the waiting list is still intact.
+    await this.notifyWaitingCustomers(salonId, 'QUEUE_PAUSED');
     await this.assertStaffAccess(staffId, salonId);
     const queue = await this.prisma.queue.findUnique({ where: { salonId }, select: { status: true } });
     if (!queue) throw new NotFoundException('Queue not found.');
@@ -481,6 +499,7 @@ export class QueueService {
 
   /** Close queue. */
   async closeQueue(staffId: string, salonId: string): Promise<{ status: PrismaQueueStatus }> {
+    await this.notifyWaitingCustomers(salonId, 'QUEUE_CLOSED');
     await this.assertStaffAccess(staffId, salonId);
     const queue = await this.prisma.queue.findUnique({
       where: { salonId },
@@ -852,6 +871,11 @@ export class QueueService {
       },
       'queue_walkin_added',
     );
+
+    await this.notifyCustomer(entry, 'QUEUE_JOINED', {
+      positionAhead: dto.queuePositionAhead ?? undefined,
+      etaMinutes: dto.etaMinutes,
+    });
     return dto;
   }
 
@@ -925,6 +949,11 @@ export class QueueService {
       : `Waiting time ${sign} by about ${minutes} minutes.`;
     await this.postAnnouncement(salonId, actorId, { body, type: 'delay' });
 
+    await this.notifyWaitingCustomers(salonId, 'QUEUE_DELAYED', {
+      delayMinutes: input.delayMinutes,
+      reason: input.reason,
+    });
+
     this.emitQueueControl(salonId, 'queue.delayed');
 
     logger.info(
@@ -962,6 +991,7 @@ export class QueueService {
       throw new ConflictException(`Cannot cancel an entry that is ${entry.state}.`);
     }
 
+    await this.notifyCustomer(entry, 'QUEUE_ENTRY_CANCELLED');
     return this.transition(entry, 'cancelled', actorId, 'cancelled');
   }
 
@@ -1207,6 +1237,50 @@ export class QueueService {
   // ─────────────────────────────────────────────────────────────────────────
   // Private helpers
   // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Notifies the customer attached to an entry (Part 11).
+   *
+   * Awaited but never allowed to fail the caller: NotificationsService swallows its own
+   * errors, because a customer actually being served matters more than the record that
+   * they were told. Walk-ins without an account are skipped there.
+   */
+  private async notifyCustomer(
+    entry: EntryWithRelations,
+    type: NotificationType,
+    extra: Record<string, unknown> = {},
+  ): Promise<void> {
+    await this.notifications.send(entry.customerId, type, {
+      entryId: entry.id,
+      salonId: entry.salonId,
+      salonName: entry.queue.salon.name,
+      serviceName: entry.service.name,
+      tokenNumber: entry.tokenNumber,
+      ...extra,
+    });
+  }
+
+  /**
+   * Notifies everyone still waiting in a salon's queue, for events that affect the whole
+   * queue rather than one customer (a delay, a pause, a closure).
+   */
+  private async notifyWaitingCustomers(
+    salonId: string,
+    type: NotificationType,
+    extra: Record<string, unknown> = {},
+  ): Promise<void> {
+    const waiting = await this.prisma.queueEntry.findMany({
+      where: { salonId, state: { in: ['waiting', 'notified', 'checked_in'] } },
+      select: { customerId: true, salon: { select: { name: true } } },
+    });
+    if (waiting.length === 0) return;
+
+    await this.notifications.sendMany(
+      waiting.map((e) => e.customerId),
+      type,
+      { salonId, salonName: waiting[0]?.salon.name, ...extra },
+    );
+  }
 
   private async loadEntry(entryId: string): Promise<EntryWithRelations> {
     const entry = await this.prisma.queueEntry.findUnique({

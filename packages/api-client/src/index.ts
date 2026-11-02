@@ -61,6 +61,7 @@ import type {
   UpdateSalonInput,
   UpdateServiceInput,
   AddStaffInput,
+  NotificationListDto,
   AddWalkInInput,
   ApplyDelayInput,
   ApplyDelayResultDto,
@@ -163,6 +164,14 @@ export function createSolitonApi(config: HttpClientConfig) {
       /** A staff member clocking themselves on or off. Takes no id by design. */
       setOwnShift: (onShift: boolean) =>
         http.patch<StaffMemberDto>('/me/shift', { onShift }),
+    },
+    /** The signed-in user's notification inbox (Part 11). In-app channel only. */
+    notifications: {
+      list: (q: { limit?: number; unreadOnly?: boolean } = {}) =>
+        http.get<NotificationListDto>('/me/notifications', q),
+      /** Marks the given notifications read, or everything when ids are omitted. */
+      markRead: (ids?: string[]) =>
+        http.patch<{ updated: number }>('/me/notifications/read', ids ? { ids } : {}),
     },
     maps: {
       geocode: (address: string) => http.get<GeocodeResponse>('/maps/geocode', { address }),
