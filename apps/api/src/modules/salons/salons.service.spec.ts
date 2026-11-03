@@ -131,7 +131,11 @@ describe('SalonsService.getDetail (public vs private shaping, visibility)', () =
     expect(Object.keys(detail).sort()).toEqual(
       [
         'address',
+        // Part 2 and 6B additions. Intentionally public: a customer choosing a business
+        // needs to know what kind it is, what it does, and how to call it.
+        'category',
         'city',
+        'description',
         'distanceMeters',
         'hours',
         'id',
@@ -139,6 +143,7 @@ describe('SalonsService.getDetail (public vs private shaping, visibility)', () =
         'location',
         'name',
         'openState',
+        'phone',
         'photoUrl',
         'rating',
         'services',

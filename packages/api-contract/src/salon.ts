@@ -10,6 +10,43 @@ export const SALON_TIMEZONE = 'Asia/Kolkata';
 export const CURRENCY = 'INR';
 
 export type SalonStatus = 'pending' | 'active' | 'suspended';
+
+/**
+ * Business vertical (Part 2). The queue engine is domain-neutral, so the same platform
+ * can list a clinic or a bank beside a salon; this is what customers filter on.
+ */
+export const BUSINESS_CATEGORIES = [
+  'salon',
+  'barber',
+  'clinic',
+  'hospital',
+  'diagnostic_centre',
+  'bank',
+  'government_office',
+  'restaurant',
+  'automobile_service',
+  'education',
+  'other',
+] as const;
+
+export type BusinessCategory = (typeof BUSINESS_CATEGORIES)[number];
+
+export const businessCategorySchema = z.enum(BUSINESS_CATEGORIES);
+
+/** Customer-facing labels. Kept with the enum so a new vertical cannot ship unlabelled. */
+export const BUSINESS_CATEGORY_LABELS: Record<BusinessCategory, string> = {
+  salon: 'Salon',
+  barber: 'Barber',
+  clinic: 'Clinic',
+  hospital: 'Hospital',
+  diagnostic_centre: 'Diagnostic centre',
+  bank: 'Bank',
+  government_office: 'Government office',
+  restaurant: 'Restaurant',
+  automobile_service: 'Car service',
+  education: 'Education',
+  other: 'Other',
+};
 export type QueueStatus = 'open' | 'limited' | 'paused' | 'closed';
 /** 'unconfigured' = the salon has not set hours; we never pretend it is open. */
 export type OpenState = 'open' | 'closed' | 'unconfigured';
@@ -87,6 +124,9 @@ export const updateSalonSchema = z
     longitude: longitudeSchema.optional(),
     photoUrl: photoUrlSchema.nullable().optional(),
     bufferConfig: bufferConfigSchema.nullable().optional(),
+    category: businessCategorySchema.optional(),
+    description: trimmed(1, 600).nullable().optional(),
+    phone: trimmed(8, 20).nullable().optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -233,6 +273,11 @@ export type LiveQueueInfo =
 export interface PublicSalonDto {
   id: string;
   name: string;
+  category: BusinessCategory;
+  /** Owner-written blurb (Part 6B). */
+  description: string | null;
+  /** Public contact number (Part 6B). Never the owner's account credential. */
+  phone: string | null;
   photoUrl: string | null;
   address: string | null;
   city: string | null;

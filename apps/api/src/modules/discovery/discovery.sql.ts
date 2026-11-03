@@ -4,6 +4,9 @@ import type { DiscoveryQuery, DiscoverySort, MapQuery } from '@soliton/api-contr
 export interface DiscoveryRow {
   id: string;
   name: string;
+  category: string;
+  description: string | null;
+  phone: string | null;
   photoUrl: string | null;
   address: string | null;
   city: string | null;
@@ -51,6 +54,10 @@ export function buildDiscoveryQuery(query: DiscoveryQuery, sort: DiscoverySort):
   if (point && query.radiusKm !== undefined) {
     conditions.push(Prisma.sql`ST_DWithin(s."geom", ${point}, ${query.radiusKm * 1000})`);
   }
+  if (query.category) {
+    // Cast because the parameter arrives as text; the enum type does the validating.
+    conditions.push(Prisma.sql`s."category" = ${query.category}::"BusinessCategory"`);
+  }
   if (query.city) {
     const pattern = buildSearchPattern(query.city);
     conditions.push(Prisma.sql`(s."city" ILIKE ${pattern} OR s."address" ILIKE ${pattern})`);
@@ -75,7 +82,8 @@ export function buildDiscoveryQuery(query: DiscoveryQuery, sort: DiscoverySort):
       : Prisma.sql`s."name" ASC, s."id" ASC`;
 
   return Prisma.sql`
-    SELECT s."id", s."name", s."photoUrl", s."address", s."city", s."status",
+    SELECT s."id", s."name", s."category", s."description", s."phone",
+           s."photoUrl", s."address", s."city", s."status",
            ST_Y(s."geom"::geometry) AS lat, ST_X(s."geom"::geometry) AS lng,
            ${distance} AS distance_m
     FROM "salons" s
@@ -88,7 +96,8 @@ export function buildDiscoveryQuery(query: DiscoveryQuery, sort: DiscoverySort):
 export function buildMapQuery(query: MapQuery): Prisma.Sql {
   const point = pointSql(query.lat, query.lng);
   return Prisma.sql`
-    SELECT s."id", s."name", s."photoUrl", s."address", s."city", s."status",
+    SELECT s."id", s."name", s."category", s."description", s."phone",
+           s."photoUrl", s."address", s."city", s."status",
            ST_Y(s."geom"::geometry) AS lat, ST_X(s."geom"::geometry) AS lng,
            ST_Distance(s."geom", ${point}) AS distance_m
     FROM "salons" s

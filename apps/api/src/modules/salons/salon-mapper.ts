@@ -1,4 +1,5 @@
 import type {
+  BusinessCategory,
   LiveQueueInfo,
   Location,
   PublicSalonDto,
@@ -40,6 +41,9 @@ export function toServiceDto(service: ServiceRecord): ServiceDto {
 export interface SalonRecord {
   id: string;
   name: string;
+  category: string;
+  description: string | null;
+  phone: string | null;
   photoUrl: string | null;
   address: string | null;
   city: string | null;
@@ -68,6 +72,9 @@ export function toPublicSalon(input: {
   return {
     id: salon.id,
     name: salon.name,
+    category: salon.category as BusinessCategory,
+    description: salon.description,
+    phone: salon.phone,
     photoUrl: salon.photoUrl,
     address: salon.address,
     city: salon.city,

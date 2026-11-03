@@ -84,7 +84,17 @@ export class SalonsService {
     const [salon, geo, hourRows, services, rating] = await Promise.all([
       this.prisma.salon.findUnique({
         where: { id: salonId },
-        select: { id: true, name: true, photoUrl: true, address: true, city: true, status: true },
+        select: {
+          id: true,
+          name: true,
+          category: true,
+          description: true,
+          phone: true,
+          photoUrl: true,
+          address: true,
+          city: true,
+          status: true,
+        },
       }),
       readSalonGeo(this.prisma, salonId, viewerLocation),
       this.prisma.operatingHours.findMany({ where: { salonId } }),
@@ -125,6 +135,9 @@ export class SalonsService {
       if (input.address !== undefined) data.address = input.address;
       if (input.city !== undefined) data.city = input.city;
       if (input.photoUrl !== undefined) data.photoUrl = input.photoUrl;
+      if (input.category !== undefined) data.category = input.category;
+      if (input.description !== undefined) data.description = input.description;
+      if (input.phone !== undefined) data.phone = input.phone;
       if (input.bufferConfig !== undefined) {
         data.bufferConfig =
           input.bufferConfig === null

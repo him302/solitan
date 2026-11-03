@@ -81,8 +81,7 @@ export default function ProfileScreen() {
             label="My Queues & History"
             onPress={() => router.push('/(tabs)/activity')}
           />
-          <View style={styles.divider} />
-          <MenuItem icon="❤️" label="Saved Salons" onPress={() => router.push('/(tabs)/saved')} />
+
         </View>
 
         <Text style={styles.sectionHeader}>PREFERENCES</Text>

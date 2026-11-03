@@ -26,6 +26,23 @@ enum SalonRole {
   staff
 }
 
+/// Business vertical. Solitan's queue engine is domain-neutral; this is what lets the
+/// same platform list a clinic or a bank alongside a salon, and lets customers filter
+/// by the kind of place they are looking for (Part 2).
+enum BusinessCategory {
+  salon
+  barber
+  clinic
+  hospital
+  diagnostic_centre
+  bank
+  government_office
+  restaurant
+  automobile_service
+  education
+  other
+}
+
 enum SalonStatus {
   pending
   active
@@ -137,6 +154,14 @@ model Salon {
   owner        User                                   @relation("SalonOwner", fields: [ownerId], references: [id])
   name          String
   status        SalonStatus                            @default(pending)
+  /// Defaults to salon: every existing row predates multi-vertical support, and salons
+  /// are what the pilot serves.
+  category      BusinessCategory                       @default(salon)
+  /// Owner-written blurb shown on the business page (Part 6B).
+  description   String?
+  /// Public contact number shown to customers (Part 6B). Distinct from the owner's
+  /// account phone, which is a credential and never published.
+  phone         String?
   address       String?
   city          String?
   queueStatus   QueueStatus                            @default(closed)

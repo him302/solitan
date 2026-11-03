@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import type { DiscoverySalonDto, LiveQueueInfo } from '@soliton/api-contract';
 import { useDiscovery } from '../../src/hooks/useDiscovery';
 import { useLocation } from '../../src/hooks/useLocation';
+import { useAppStore } from '../../src/stores/appStore';
 import { formatDistanceMeters } from '../../src/services/location.service';
 
 const MAROON = '#A50000';
@@ -164,7 +165,11 @@ function SectionRow({ salons, savedIds, onSave }: {
 export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
-  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  // Persisted, so a favourite survives leaving the screen. It used to be component
+  // state, which meant the heart forgot everything on unmount.
+  const savedSalonIds = useAppStore((state) => state.savedSalonIds);
+  const toggleSavedSalon = useAppStore((state) => state.toggleSavedSalon);
+  const savedIds = useMemo(() => new Set(savedSalonIds), [savedSalonIds]);
 
   const { location, loading: locLoading } = useLocation();
 
@@ -188,13 +193,14 @@ export default function DiscoverScreen() {
     [salons],
   );
 
-  const toggleSave = (id: string) => {
-    setSavedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) { next.delete(id); } else { next.add(id); }
-      return next;
-    });
-  };
+  const toggleSave = toggleSavedSalon;
+
+  // Favourites live here as a section rather than a fourth tab: Part 6 specifies three
+  // primary tabs, and the old Saved tab read from a hardcoded fixture list.
+  const favourites = useMemo(
+    () => salons.filter((salon) => savedIds.has(salon.id)),
+    [salons, savedIds],
+  );
 
   const showLoading = isLoading || locLoading;
 
@@ -239,6 +245,15 @@ export default function DiscoverScreen() {
                 )}
               </View>
             </View>
+
+            {/* Favourites — only the ones present in the current result set, so a
+                favourite that is out of range is not rendered with stale details. */}
+            {favourites.length > 0 && (
+              <View style={{ marginBottom: 20 }}>
+                <Text style={styles.sectionTitle}>Your favourites</Text>
+                <SectionRow salons={favourites} savedIds={savedIds} onSave={toggleSave} />
+              </View>
+            )}
 
             {/* Available Now section */}
             {!showLoading && availableNow.length > 0 && (

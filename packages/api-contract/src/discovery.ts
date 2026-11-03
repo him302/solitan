@@ -4,6 +4,7 @@
  * "recommended" ranking.
  */
 import { z } from 'zod';
+import { businessCategorySchema } from './salon';
 import type { DiscoverySalonDto, Location, OpenState } from './salon';
 
 export const DISCOVERY_SORTS = ['nearest', 'name'] as const;
@@ -20,6 +21,8 @@ export const discoveryQuerySchema = z
   .object({
     q: z.string().trim().max(80).optional(),
     city: z.string().trim().max(80).optional(),
+    /** Filter to one vertical, e.g. only clinics (Part 2). */
+    category: businessCategorySchema.optional(),
     lat: latSchema.optional(),
     lng: lngSchema.optional(),
     radiusKm: z.coerce.number().positive().max(100).optional(),

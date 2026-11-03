@@ -54,13 +54,7 @@ export default function TabLayout() {
           tabBarIcon: ({ focused }) => <TabIcon label="📋" focused={focused} />,
         }}
       />
-      <Tabs.Screen
-        name="saved"
-        options={{
-          title: 'Saved',
-          tabBarIcon: ({ focused }) => <TabIcon label="❤️" focused={focused} />,
-        }}
-      />
+
       <Tabs.Screen
         name="profile"
         options={{
@@ -68,6 +62,8 @@ export default function TabLayout() {
           tabBarIcon: ({ focused }) => <TabIcon label="👤" focused={focused} />,
         }}
       />
+      {/* Reached from Profile rather than the tab bar: Part 6 specifies three
+          primary tabs (Discover, Activity, Profile). */}
       <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
   );
