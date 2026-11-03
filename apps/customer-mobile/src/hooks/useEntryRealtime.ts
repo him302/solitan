@@ -4,6 +4,7 @@ import { entryRoom } from '@soliton/api-contract';
 import type { RealtimeEvent, Snapshot, QueueEntryDto } from '@soliton/api-contract';
 import { tokenStorage } from '../auth/tokenStorage';
 import { env } from '../env';
+import { describeQueueChange, presentLocalNotification } from '../notifications/localNotifications';
 
 /** Module-level client so we don't create a new socket on every re-render. */
 let cachedClient: RealtimeClient | null = null;
@@ -27,6 +28,11 @@ async function getClient(): Promise<RealtimeClient> {
  * Subscribes to an entry's realtime room.
  * Calls `onUpdate` whenever the server pushes a new entry state.
  * Requests a snapshot on subscribe so the view is immediately authoritative.
+ *
+ * Also raises a local device notification when the state change is one the customer needs
+ * to act on (Part 11's local_device channel). Only state transitions are announced, and
+ * only the ones that change what they should do — a notification per position change
+ * would be unusable in a ten-person queue.
  */
 export function useEntryRealtime(
   entryId: string | null | undefined,
@@ -34,6 +40,10 @@ export function useEntryRealtime(
 ): void {
   const onUpdateRef = useRef(onUpdate);
   onUpdateRef.current = onUpdate;
+
+  // Last seen state, so a notification is raised on genuine transitions rather than on
+  // every snapshot. Reset when the subscription moves to a different entry.
+  const previousRef = useRef<QueueEntryDto | null>(null);
 
   useEffect(() => {
     if (!entryId) return;
@@ -46,15 +56,23 @@ export function useEntryRealtime(
         const client = await getClient();
         if (cancelled) return;
 
+        const apply = (entry: QueueEntryDto) => {
+          const change = describeQueueChange(previousRef.current, entry);
+          previousRef.current = entry;
+          onUpdateRef.current(entry);
+          // Fire-and-forget: a notification must never delay the screen update.
+          if (change) void presentLocalNotification(change.title, change.body);
+        };
+
         const handleEvent = (event: RealtimeEvent) => {
           if (event.payload && typeof event.payload === 'object') {
-            onUpdateRef.current(event.payload as QueueEntryDto);
+            apply(event.payload as QueueEntryDto);
           }
         };
 
         const handleSnapshot = (snapshot: Snapshot) => {
           if (snapshot.room === room && snapshot.state) {
-            onUpdateRef.current(snapshot.state as QueueEntryDto);
+            apply(snapshot.state as QueueEntryDto);
           }
         };
 
@@ -73,6 +91,7 @@ export function useEntryRealtime(
 
     return () => {
       cancelled = true;
+      previousRef.current = null;
       cleanup?.();
     };
   }, [entryId]);
