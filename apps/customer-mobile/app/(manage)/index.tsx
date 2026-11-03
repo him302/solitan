@@ -142,6 +142,7 @@ export default function DashboardScreen() {
             </>
           )}
           <DashboardLink label="Live Queue" emoji="📋" onPress={() => router.push('/(manage)/queue')} />
+          <DashboardLink label="Solitan Assistant" emoji="✨" onPress={() => router.push('/assistant')} />
         </View>
 
         <Button

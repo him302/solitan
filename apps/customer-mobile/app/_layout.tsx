@@ -15,6 +15,9 @@ export default function RootLayout() {
         <Stack.Screen name="location-permission" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="(manage)" />
+        <Stack.Screen name="assistant" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="legal" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="salon/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="booking/confirm" options={{ presentation: 'modal' }} />
         <Stack.Screen name="queue/[bookingId]" options={{ animation: 'slide_from_right' }} />

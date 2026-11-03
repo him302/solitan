@@ -167,3 +167,6 @@ export * from './staff';
 
 // ---------------- notifications ----------------
 export * from './notification';
+
+// ---------------- AI assistant ----------------
+export * from './assistant';

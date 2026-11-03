@@ -55,7 +55,11 @@ export default function ProfileScreen() {
             <Text style={styles.userName}>{displayName}</Text>
             {displayEmail ? <Text style={styles.userEmail}>{displayEmail}</Text> : null}
           </View>
-          <Pressable style={styles.editBtn} accessibilityRole="button">
+          <Pressable
+            style={styles.editBtn}
+            accessibilityRole="button"
+            onPress={() => router.push('/(tabs)/settings')}
+          >
             <Text style={styles.editBtnText}>Edit</Text>
           </Pressable>
         </View>
@@ -70,39 +74,55 @@ export default function ProfileScreen() {
           </Pressable>
         )}
 
-        <Pressable style={styles.premiumCard}>
-          <View>
-            <Text style={styles.premiumLabel}>✦ Solitan Premium</Text>
-            <Text style={styles.premiumSub}>Priority booking · Exclusive offers</Text>
-          </View>
-          <Text style={styles.premiumArrow}>→</Text>
-        </Pressable>
-
         <Text style={styles.sectionHeader}>MY ACTIVITY</Text>
         <View style={styles.menuCard}>
-          <MenuItem icon="📋" label="My Appointments" />
+          <MenuItem
+            icon="📋"
+            label="My Queues & History"
+            onPress={() => router.push('/(tabs)/activity')}
+          />
           <View style={styles.divider} />
-          <MenuItem icon="❤️" label="Saved Salons" />
-          <View style={styles.divider} />
-          <MenuItem icon="⭐" label="Reviews" />
+          <MenuItem icon="❤️" label="Saved Salons" onPress={() => router.push('/(tabs)/saved')} />
         </View>
 
         <Text style={styles.sectionHeader}>PREFERENCES</Text>
         <View style={styles.menuCard}>
-          <MenuItem icon="🔔" label="Notifications" />
+          <MenuItem
+            icon="🔔"
+            label="Notifications"
+            onPress={() => router.push('/notifications')}
+          />
           <View style={styles.divider} />
-          <MenuItem icon="📍" label="Location" />
+          <MenuItem
+            icon="🌓"
+            label="Appearance & Language"
+            onPress={() => router.push('/(tabs)/settings')}
+          />
           <View style={styles.divider} />
-          <MenuItem icon="💳" label="Payment Methods" />
+          <MenuItem
+            icon="📍"
+            label="Location"
+            onPress={() => router.push('/location-permission')}
+          />
         </View>
 
         <Text style={styles.sectionHeader}>SUPPORT</Text>
         <View style={styles.menuCard}>
-          <MenuItem icon="❓" label="Help & Support" />
+          {/* Both of these were dead items with no handler. */}
+          <MenuItem
+            icon="✨"
+            label="Solitan Assistant"
+            onPress={() => router.push('/assistant')}
+          />
           <View style={styles.divider} />
-          <MenuItem icon="📞" label="Contact Us" />
+          <MenuItem
+            icon="❓"
+            label="Help & Support"
+            onPress={() => router.push('/assistant')}
+          />
           <View style={styles.divider} />
-          <MenuItem icon="📄" label="Terms & Privacy" />
+          <View style={styles.divider} />
+          <MenuItem icon="📄" label="Terms & Privacy" onPress={() => router.push('/legal')} />
         </View>
 
         <Text style={styles.sectionHeader}>ACCOUNT</Text>
@@ -135,10 +155,6 @@ const styles = StyleSheet.create({
   businessLabel: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
   businessSub: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 3 },
   businessArrow: { fontSize: 22, color: '#FFFFFF', fontWeight: '700' },
-  premiumCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: MAROON, borderRadius: 18, padding: 18, marginBottom: 20, elevation: 4, shadowColor: MAROON, shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } },
-  premiumLabel: { fontSize: 16, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.3 },
-  premiumSub: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 3 },
-  premiumArrow: { fontSize: 22, color: '#FFFFFF', fontWeight: '700' },
   sectionHeader: { fontSize: 11, fontWeight: '700', color: '#B0ADA8', letterSpacing: 1.2, marginBottom: 8, marginTop: 4, paddingHorizontal: 4 },
   menuCard: { backgroundColor: '#FFFFFF', borderRadius: 18, overflow: 'hidden', marginBottom: 16, elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6 },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, minHeight: 52, gap: 12 },

@@ -61,6 +61,9 @@ import type {
   UpdateSalonInput,
   UpdateServiceInput,
   AddStaffInput,
+  AskAssistantInput,
+  AssistantAnswerDto,
+  AssistantStatusDto,
   NotificationListDto,
   AddWalkInInput,
   ApplyDelayInput,
@@ -172,6 +175,14 @@ export function createSolitonApi(config: HttpClientConfig) {
       /** Marks the given notifications read, or everything when ids are omitted. */
       markRead: (ids?: string[]) =>
         http.patch<{ updated: number }>('/me/notifications/read', ids ? { ids } : {}),
+    },
+    /**
+     * Solitan AI Assistant (Part 12). The answer always names the engine that produced
+     * it, so the UI can label local answers honestly rather than implying Gemini.
+     */
+    assistant: {
+      status: () => http.get<AssistantStatusDto>('/assistant/status'),
+      ask: (input: AskAssistantInput) => http.post<AssistantAnswerDto>('/assistant/ask', input),
     },
     maps: {
       geocode: (address: string) => http.get<GeocodeResponse>('/maps/geocode', { address }),

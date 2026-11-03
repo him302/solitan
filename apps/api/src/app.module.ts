@@ -9,6 +9,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { SalonsModule } from './modules/salons/salons.module';
 import { ServicesModule } from './modules/services/services.module';
 import { StaffModule } from './modules/staff/staff.module';
+import { AssistantModule } from './modules/assistant/assistant.module';
 import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { MapsModule } from './modules/maps/maps.module';
 import { ProvidersModule } from './modules/providers/providers.module';
@@ -34,6 +35,7 @@ import { ReportingModule } from './modules/reporting/reporting.module';
     SalonsModule,
     ServicesModule,
     StaffModule,
+    AssistantModule,
     DiscoveryModule,
     MapsModule,
     QueueModule,
