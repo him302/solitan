@@ -47,22 +47,17 @@ animation's snip rate and travel speed once you watch it — those are single co
 
 ---
 
-## `apps/salon-mobile` is superseded but still present
+## `apps/customer-mobile` is misnamed
 
-The customer app now serves all four roles through role-based routing, which is where the
-staff screen, role-gated tabs and every new feature live. `salon-mobile` still contains
-its own copy of the nine `(manage)` screens and has **not** received any of it, so it will
-drift further with each change.
+It serves customers, owners **and** staff through role-based routing, so the name is
+misleading. Renaming it touches the package name, every relative import in the workspace,
+the Expo config and `eas.json`, so it was left for a deliberate pass rather than bundled
+into feature work.
 
-It is left in the tree only because deleting an entire app was not authorised. It should
-be removed: nothing imports from it, and its history is recoverable from git. Note that
-`pnpm dev` starts an Expo server for it too, which will contend for a port with the
-customer app.
-
-Once it is gone, `apps/customer-mobile` should be renamed — it serves customers, owners
-and staff, so the name is actively misleading.
-
----
+The superseded `apps/salon-mobile` has been removed. It held a second copy of the nine
+owner `(manage)` screens and received none of the work in this rebuild, so it was diverging
+with every commit and `pnpm dev` started a competing Expo server for it. Its history is in
+git if any of it is wanted back.
 
 ## Notifications
 

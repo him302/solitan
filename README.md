@@ -42,7 +42,6 @@ subscriptions. See [docs/FREE_SERVICES.md](docs/FREE_SERVICES.md).
 | `apps/api` | NestJS REST + Socket.IO API (PostgreSQL + PostGIS + Redis) |
 | `apps/customer-mobile` | Expo / React Native app — **all four roles**, Android-first |
 | `apps/admin-web` | Next.js 15 platform-admin dashboard |
-| `apps/salon-mobile` | Legacy owner app, superseded — see [docs/LIMITATIONS.md](docs/LIMITATIONS.md) |
 | `packages/api-contract` | Zod schemas + DTOs — one source of truth for API and clients |
 | `packages/api-client` | Typed, framework-free HTTP client used by every front end |
 | `packages/design-tokens` | Brand, colour, type, spacing and motion tokens |

@@ -24,10 +24,10 @@ during this rebuild has been seen running. Expect to tune the opening animation'
 
 ## Next — finishing what is started
 
-**4. Retire `apps/salon-mobile` and rename `customer-mobile`.** The second app is a
-superseded copy of the owner dashboard that receives none of the new work, so it diverges
-with every commit, and `pnpm dev` starts a competing Expo server for it. After removal,
-`customer-mobile` should be renamed since it serves customers, owners *and* staff.
+**4. Rename `apps/customer-mobile`.** It serves customers, owners *and* staff, so the name
+actively misleads. The superseded `salon-mobile` has already been removed. The rename
+touches the package name, workspace imports, the Expo config and `eas.json`, so it wants a
+deliberate pass of its own.
 
 **5. Complete discovery sorting.** Shortest wait, most popular and available now (Part 6A).
 The data now exists — live queue state is populated and reviews give popularity — so this
