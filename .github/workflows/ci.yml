@@ -92,8 +92,11 @@ jobs:
       - name: Run database migrations
         run: pnpm --filter @soliton/api exec prisma migrate deploy
 
-      - name: Test
-        run: pnpm test
+      - name: Seed database
+        run: pnpm --filter @soliton/api exec prisma db seed
+
+      - name: Test (with database tests)
+        run: RUN_DB_TESTS=1 pnpm test
 
       - name: Build
         run: pnpm build
